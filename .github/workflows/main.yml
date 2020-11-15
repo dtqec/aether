@@ -1,0 +1,23 @@
+name: main
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container: rigetti/quilc
+    steps:
+    - name: Check out aether
+      uses: actions/checkout@v2
+      with:
+        path: aether
+    - name: Run the test suite
+      run: |
+        # run the tests via the Makefile
+        cd aether
+        sbcl --version
+        make test

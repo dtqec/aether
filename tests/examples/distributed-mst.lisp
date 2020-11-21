@@ -72,7 +72,7 @@
    ;; denoted by FN in the paper pseudocode
    (fragment-weight
     :initform nil
-    :type (or nil integer)
+    :type (or null integer)
     :accessor fragment-node-fragment-weight)
    ;; denoted by LN in the paper pseudocode
    (fragment-level
@@ -82,7 +82,6 @@
     :documentation "An integer between 0 and log N (where N is the number of nodes).")
    ;; contains edge identifiers, weights, and states (SE)
    (adjacent-edges
-    :initform nil
     :initarg :adjacent-edges
     :type hash-table
     :accessor fragment-node-adjacent-edges

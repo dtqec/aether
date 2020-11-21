@@ -31,31 +31,17 @@ test:
 		--eval "(asdf:test-system :aether)"
 
 ###
-### clean targets, borrowed from QVM
+### clean targets (borrowed from QVM)
 ###
 
-# Clean the executables
 clean:
-	rm -f qvm qvm-ng build-output.log system-index.txt
-
-# Clean the Lisp cache, reindex local projects.
-clean-cache:
-	@echo "Deleting $(LISP_CACHE)"
-	$(QUICKLISP) \
-		--eval "(ql:register-local-projects)"
-	rm -rf "$(LISP_CACHE)"
-
-clean-qvm-cache:
-	@echo "Deleting $(QVM_LISP_CACHE)"
-	$(QUICKLISP) \
-		--eval "(ql:register-local-projects)"
-	rm -rf $(QVM_LISP_CACHE)
+	rm -f system-index.txt
 
 clean-quicklisp:
 	@echo "Cleaning up old projects in Quicklisp"
 	$(QUICKLISP) \
 		--eval '(ql-dist:clean (ql-dist:dist "quicklisp"))'
 
-cleanall: clean clean-cache clean-quicklisp
+cleanall: clean clean-quicklisp
 	@echo "All cleaned and reindexed."
 

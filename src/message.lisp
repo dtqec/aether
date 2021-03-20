@@ -13,6 +13,12 @@
 (defparameter *courier-processing-clock-rate* 100)
 (defparameter *routing-time-step* 1/100)
 
+(define-global-counter **courier-index** get-courier-index)
+(define-global-counter **message-index** get-message-index)
+(define-global-counter **channel-index** get-channel-index)
+(defun get-secret-index ()
+  (random most-positive-fixnum))
+
 ;; TODO: consider using weak hash tables here
 (defstruct courier
   "A component in the message-passing apparatus.
@@ -27,7 +33,7 @@
   (secrets (make-hash-table :test 'eq))
   (processing-clock-rate *courier-processing-clock-rate*)
   (default-routing-time-step *routing-time-step*)
-  (id (gensym))
+  (id (get-courier-index))
   (neighbors (make-hash-table))
   ; TODO GH-28: listeners?
   )
@@ -81,8 +87,8 @@ NOTE: The SECRET field is \"optional\", in that only processes that possess the 
 
 (defstruct message
   "Base type for messages transmitted along `COURIER's."
-  (reply-channel nil                :type (or null address))
-  (message-id    (gensym "message") :type symbol))
+  (reply-channel nil                 :type (or null address))
+  (message-id    (get-message-index) :type integer))
 
 (defstruct (message-RTS (:include message))
   "This message is generated as a fresh automatic response when an original message is sent to a nonexistent (or closing) mailbox.
@@ -95,8 +101,8 @@ NOTE: \"RTS\" is short for \"Return To Sender\".")
 ;;       only "public addresses" should be legal. it would be best, i think, if
 ;;       private keys were automatically downgraded to public addresses.
 (defun register (&key (courier *local-courier*)
-                      (channel (gensym "CHANNEL"))
-                      (secret (gensym)))
+                      (channel (get-channel-index))
+                      (secret (get-secret-index)))
   "Registers a fresh channel over which messages can be transmitted and received."
   (assert (null (gethash channel (courier-inboxes courier))) ()
           "Channel name already in use: ~a" channel)

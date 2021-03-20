@@ -148,3 +148,21 @@ WARNING: This routine is based on MAPHASH, which has undefined behavior if the s
                     (parse-option item))
                    (t
                     (error "Unknown lambda list chunk: ~a~%" item))))))
+
+;; see rigetti/quilc/src/utilities.lisp
+(defmacro define-global-counter (counter-name incf-name)
+  `(progn
+     (declaim (type fixnum ,counter-name))
+     (global-vars:define-global-var ,counter-name 0)
+     (declaim (inline ,incf-name))
+     (defun ,incf-name ()
+       #+sbcl
+       (sb-ext:atomic-incf ,counter-name)
+       #+lispworks
+       (system:atomic-incf ,counter-name)
+       #+ecl
+       (mp:atomic-incf ,counter-name)
+       #+ccl
+       (ccl::atomic-incf ,counter-name)
+       #-(or ccl ecl sbcl lispworks)
+       (incf ,counter-name))))

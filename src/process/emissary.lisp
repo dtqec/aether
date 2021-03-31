@@ -27,10 +27,9 @@
            ((,process ,process-type) (,message ,message-type) ,now)
          (let ((,servicer (spawn-process 'process-message-emissary)))
            (future ,servicer ,now)
-           (setf (process-command-stack ,servicer)
-                 (list (list ',command ,process ,message))
-                 (process-clock-rate ,servicer)
-                 (process-clock-rate ,process))
+           (setf (process-command-stack ,servicer) (list (list ',command ,process ,message))
+                 (process-clock-rate ,servicer)    (process-clock-rate ,process)
+                 (process-debug? ,servicer)        (process-debug? ,process))
            (values)))
        
        (define-process-upkeep ((,subprocess process-message-emissary) ,now)

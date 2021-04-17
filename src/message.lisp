@@ -256,7 +256,7 @@ NOTES:
          (future courier (+ time (/ (courier-processing-clock-rate courier))))
          (future (ignorant-lambda
                    (deliver-message intermediate-destination message))
-           (+ time time-to-deliver)))))))
+                 (+ time time-to-deliver)))))))
 
 ;;;
 ;;; standard message types

@@ -163,6 +163,50 @@ Provides some helper functions: SCHEDULE, SCHEDULE*, and FINISH-WITH-SCHEDULING.
   (error "FINISH-WITH-SCHEDULING is not defined outside of WITH-SCHEDULING."))
 
 
+;;; deprecated "future" naming scheme
+
+(defmacro with-future (&body body)
+  "WARNING: This macro is deprecated in favor of `WITH-SCHEDULING` and will be removed in a future release.
+
+Stores an implicit set of EVENT objects to return when exiting the WITH-FUTURES block.
+
+Provides some helper functions: FUTURE, FUTURE*, and FINISH-WITH-FUTURES."
+  (warn "WITH-FUTURE is deprecated in favor of WITH-SCHEDULING and will be removed in a future release.")
+  `(with-scheduling
+    (flet ((future (fn-or-obj time)
+             (schedule fn-or-obj time))
+           (future* (events)
+             (schedule* events))
+           (finish-with-futures (&optional (events nil eventsp))
+             (cond
+              (eventsp
+                (finish-with-scheduling events))
+              (t
+                (finish-with-scheduling)))))
+      (declare (ignorable #'future #'future* #'finish-with-futures))
+      ,@body)))
+
+(defun future (fn-or-obj time)
+  "WARNING: This function is deprecated in favor of `SCHEDULE` and will be removed in a future release.
+
+Installs a future EVENT object, which invokes FN-OR-OBJ at the specified TIME."
+  (declare (ignore fn-or-obj time))
+  (error "FUTURE is not defined outside of WITH-FUTURES."))
+
+(defun future* (event-list)
+  "WARNING: This function is deprecated in favor of `SCHEDULE*` and will be removed in a future release.
+
+Installs a list of future EVENT objects."
+  (declare (ignore event-list))
+  (error "FUTURE* is not defined outside of WITH-FUTURES."))
+
+(defun finish-with-futures (&optional event-list)
+  "WARNING: This function is deprecated in favor of `FINISH-WITH-SCHEDULING` and will be removed in a future release.
+
+Breaks out of WITH-FUTURES. If EVENTS is supplied, returns EVENTS in place of the implicit event list."
+  (declare (ignore event-list))
+  (error "FINISH-WITH-FUTURES is not defined outside of WITH-FUTURES."))
+
 
 ;; Here lies an implementation of SIMULATION on top of a bare CL-HEAP.  It's
 ;; very slow and memory-expensive in our use case!

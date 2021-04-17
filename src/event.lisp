@@ -115,28 +115,28 @@ HORIZON: The timestamp before which all events have been simulated.  Ensures tha
 ;;; DSL for building event producers associated to object types
 ;;;
 
-(defmacro with-futures (&body body)
-  "Stores an implicit set of EVENT objects to return when exiting the WITH-FUTURE block.
+(defmacro with-scheduling (&body body)
+  "Stores an implicit set of EVENT objects to return when exiting the WITH-SCHEDULING block.
 
-Provides some helper functions: FUTURE, FUTURE*, and FINISH-WITH-FUTURES."
-  (alexandria:with-gensyms (block-name futures-collection last-value)
-    `(let (,futures-collection ,last-value)
+Provides some helper functions: SCHEDULE, SCHEDULE*, and FINISH-WITH-SCHEDULING."
+  (alexandria:with-gensyms (block-name event-collection last-value)
+    `(let (,event-collection ,last-value)
        (block ,block-name
-         (labels ((future (fn-or-obj time)
+         (labels ((schedule (fn-or-obj time)
                     (push (make-event :callback fn-or-obj
                                       :time time)
-                          ,futures-collection)
+                          ,event-collection)
                     (values))
-                  (future* (events)
-                    (setf ,futures-collection
-                          (append events ,futures-collection))
+                  (schedule* (events)
+                    (setf ,event-collection
+                          (append events ,event-collection))
                     (values))
-                  (finish-with-futures (&optional (events nil eventsp))
+                  (finish-with-scheduling (&optional (events nil eventsp))
                     (return-from ,block-name
-                      (if eventsp events ,futures-collection))))
-           (declare (ignorable #'future #'future* #'finish-with-futures))
+                      (if eventsp events ,event-collection))))
+           (declare (ignorable #'schedule #'schedule* #'finish-with-scheduling))
            (setf ,last-value (progn ,@body))
-           (values ,futures-collection ,last-value))))))
+           (values ,event-collection ,last-value))))))
 
 (defmacro define-object-handler (((object-variable object-type) time-variable) &body body)
   "Defines a default event handler for OBJECT-TYPE."
@@ -144,23 +144,23 @@ Provides some helper functions: FUTURE, FUTURE*, and FINISH-WITH-FUTURES."
     `(defmethod handle-object ((,object-variable ,object-type) ,time-variable)
        ,@(when docstring (list docstring))
        ,@(when decls decls)
-       (with-futures
+       (with-scheduling
          ,@forms))))
 
-(defun future (fn-or-obj time)
+(defun schedule (fn-or-obj time)
   "Installs a future EVENT object, which invokes FN-OR-OBJ at the specified TIME."
   (declare (ignore fn-or-obj time))
-  (error "FUTURE is not defined outside of WITH-FUTURES."))
+  (error "SCHEDULE is not defined outside of WITH-SCHEDULING."))
 
-(defun future* (event-list)
+(defun schedule* (event-list)
   "Installs a list of future EVENT objects."
   (declare (ignore event-list))
-  (error "FUTURE* is not defined outside of WITH-FUTURES."))
+  (error "SCHEDULE* is not defined outside of WITH-SCHEDULING."))
 
-(defun finish-with-futures (&optional event-list)
-  "Breaks out of WITH-FUTURE. If EVENTS is supplied, returns EVENTS in place of the implicit event list."
+(defun finish-with-scheduling (&optional event-list)
+  "Breaks out of WITH-SCHEDULING. If EVENTS is supplied, returns EVENTS in place of the implicit event list."
   (declare (ignore event-list))
-  (error "FINISH-WITH-FUTURES is not defined outside of WITH-FUTURES."))
+  (error "FINISH-WITH-SCHEDULING is not defined outside of WITH-SCHEDULING."))
 
 
 

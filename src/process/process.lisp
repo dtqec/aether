@@ -97,7 +97,7 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
                                  ,time)
          ,@decls
          ,@(list documentation)
-         (with-futures
+         (with-scheduling
            (check-type ,message ,message-type)
            (check-type ,process ,process-type)
            (flet ((log-entry (&rest initargs)
@@ -248,7 +248,7 @@ PROCESS is COMMAND is a KEYWORD, and COMMAND-ARGS is a DESTRUCTURING-BIND-LAMBDA
 Locally enables the use of the function PROCESS-DIE and the special form SYNC-RECEIVE."
   (check-type command symbol)
   (multiple-value-bind (body decls docstring) (a:parse-body body :documentation t)
-    (a:with-gensyms (command-place argument-list active? futures)
+    (a:with-gensyms (command-place argument-list active? events)
       (let ((macrolet-definitions (%dpu-macrolet-definitions :process-name process-name
                                                              :now now))
             (flet-definitions (%dpu-flet-definitions :active? active?
@@ -271,9 +271,9 @@ Locally enables the use of the function PROCESS-DIE and the special form SYNC-RE
                                        (list :source (process-public-address ,process-name)
                                              :source-type ',process-type
                                              :time ,now))))))
-               (initialize-and-return ((,active? t) (,futures nil))
-                 (setf ,futures
-                       (with-futures
+               (initialize-and-return ((,active? t) (,events nil))
+                 (setf ,events
+                       (with-scheduling
                          (destructuring-bind ,command-args ,argument-list
                            ,@decls
                            (macrolet ,macrolet-definitions
@@ -296,19 +296,19 @@ Locally enables the use of the function PROCESS-DIE and the special form SYNC-RE
       (multiple-value-bind (events progress?)
           (message-dispatch process time)
         (when progress?
-          (future* events)
+          (schedule* events)
           (when process-exhaust-inbox?
-            (future process time)
-            (finish-with-futures))))
+            (schedule process time)
+            (finish-with-scheduling))))
       (when (peek (process-command-stack process))
         (destructuring-bind (command &rest args) (pop (process-command-stack process))
-          (multiple-value-bind (futures active-after-action)
+          (multiple-value-bind (events active-after-action)
               (process-upkeep process time command args)
-            (future* futures)
+            (schedule* events)
             (setf active? active-after-action))))
       (cond
         (active?
-         (future process (+ time (/ process-clock-rate))))
+         (schedule process (+ time (/ process-clock-rate))))
         ;; tear down the process
         ((not active?)
          (unregister (process-key process)))))))

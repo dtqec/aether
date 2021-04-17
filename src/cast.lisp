@@ -31,7 +31,7 @@
 1. `PUSH-BROADCAST-FRAME', which creates a `BROADCAST-FRAME' and pushes it onto the data stack. If no `MESSAGE' is provided to the function, it defaults to the `MESSAGE' currently being handled. If a user calls `PUSH-BROADCAST-FRAME' twice in the same handler, an error will be raised.
 2. `RETURN-FROM-CAST', which allows the user to terminate the broadcast operation early by sending up an acknowledgement (optionally specifying its contents) to the original sender of `MESSAGE'.
 
-WARNING: `RETURN-FROM-CAST' calls `PUSH-BROADCAST-FRAME' as part of the aborting process. If a frame has already been pushed onto the data stack, we instead alter that frame rather than pushing an additional one (which could have strange consequences). Additionally, it is important to note that `RETURN-FROM-CAST' uses `FINISH-WITH-FUTURES' in order to return from the handler early."
+WARNING: `RETURN-FROM-CAST' calls `PUSH-BROADCAST-FRAME' as part of the aborting process. If a frame has already been pushed onto the data stack, we instead alter that frame rather than pushing an additional one (which could have strange consequences). Additionally, it is important to note that `RETURN-FROM-CAST' uses `FINISH-WITH-SCHEDULING' in order to return from the handler early."
   (a:with-gensyms (broadcast-frame reply-channel)
     `(define-message-handler ,handler-name
          ((,process ,process-type) (,message ,message-type) ,now)
@@ -65,7 +65,7 @@ WARNING: `RETURN-FROM-CAST' calls `PUSH-BROADCAST-FRAME' as part of the aborting
                     (when ,reply-channel
                       (send-message ,reply-channel (make-message-rpc-done
                                                     :result value)))
-                    (finish-with-futures)))
+                    (finish-with-scheduling)))
              (declare (ignorable #'return-from-cast))
              ;; Push `BROADCAST' before executing the body, in case the body
              ;; pushes an additional script onto the command stack that is
@@ -136,7 +136,7 @@ Where `REPLIES' is assumed to be a `LIST'. Additionally, when `HANDLE-RTS?' is t
 1. `PUSH-CONVERGECAST-FRAME', which creates a `CONVERGECAST-FRAME' and pushes it onto the data stack. If no `MESSAGE' is provided to the function, it defaults to the `MESSAGE' currently being handled. If a user calls `PUSH-BROADCAST-FRAME' twice in the same handler, an error will be raised.
 2. `RETURN-FROM-CAST', which allows the user to terminate the convergecast operation early by sending up an acknowledgement (optionally specifying its contents) to the original sender of `MESSAGE'. It is recommended that a value is provided when returning from a convergecast, as it will be passed to a function (the function provided to the `CONVERGECAST-FRAME') when received by the original sender.
 
-WARNING: `RETURN-FROM-CAST' calls `PUSH-CONVERGECAST-FRAME' as part of the aborting process. If a frame has already been pushed onto the data stack, we instead alter that frame rather than pushing an additional one (which could have strange consequences). Additionally, it is important to note that `RETURN-FROM-CAST' uses `FINISH-WITH-FUTURES' in order to return from the handler early."
+WARNING: `RETURN-FROM-CAST' calls `PUSH-CONVERGECAST-FRAME' as part of the aborting process. If a frame has already been pushed onto the data stack, we instead alter that frame rather than pushing an additional one (which could have strange consequences). Additionally, it is important to note that `RETURN-FROM-CAST' uses `FINISH-WITH-SCHEDULING' in order to return from the handler early."
   (a:with-gensyms (convergecast-frame reply-channel)
     `(define-message-handler ,handler-name
          ((,process ,process-type) (,message ,message-type) ,now)
@@ -173,7 +173,7 @@ WARNING: `RETURN-FROM-CAST' calls `PUSH-CONVERGECAST-FRAME' as part of the abort
                     (when ,reply-channel
                       (send-message ,reply-channel (make-message-rpc-done
                                                     :result value)))
-                    (finish-with-futures)))
+                    (finish-with-scheduling)))
              (declare (ignorable #'return-from-cast))
              (process-continuation ,process `(CONVERGECAST))
              ,@body))))))

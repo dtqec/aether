@@ -62,10 +62,10 @@
    #:make-simulation                    ; FUNCTION
    #:simulation-add-event               ; FUNCTION
    #:simulation-run                     ; FUNCTION
-   #:with-futures                       ; MACRO
-   #:future                             ; FUNCTION
-   #:future*                            ; FUNCTION
-   #:finish-with-futures                ; MACRO
+   #:with-scheduling                    ; MACRO
+   #:schedule                           ; FUNCTION
+   #:schedule*                          ; FUNCTION
+   #:finish-with-scheduling             ; MACRO
    
    #:canary-until                       ; FUNCTION
    #:canary-timeout                     ; FUNCTION

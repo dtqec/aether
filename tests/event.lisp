@@ -22,7 +22,7 @@
              :time now
              :entry-type 'a
              :slot (a-slot a))
-  (future a (1+ now)))
+  (schedule a (1+ now)))
 
 (define-object-handler ((b b) now)
   (log-entry :source b
@@ -30,15 +30,15 @@
              :time now
              :entry-type 'b)
   (when (< now (b-cutoff b))
-    (future b (+ 1 now))
-    (future b (+ 2 now))))
+    (schedule b (+ 1 now))
+    (schedule b (+ 2 now))))
 
 (define-object-handler ((c c) now)
   (log-entry :source c
              :source-type (type-of c)
              :time now
              :entry-type 'c)
-  (future* (call-next-method)))
+  (schedule* (call-next-method)))
 
 (deftest test-event-loop ()
   (with-transient-logger ()

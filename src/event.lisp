@@ -13,7 +13,7 @@
   (callback nil :read-only t)
   (time       0 :read-only t :type (rational 0)))
 
-(defgeneric handle-object (object time)
+(defgeneric handle-object (object now)
   (:documentation "Describes the generic behavior of OBJECTs of a particular type, as occuring at a particular TIME."))
 
 (defstruct (simulation (:constructor %make-simulation))

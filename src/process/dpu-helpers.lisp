@@ -165,12 +165,12 @@ Typical use looks like:
 ;;; commands
 ;;;
 
-(define-process-upkeep ((process T) time) (REPEAT-UNTIL callback finalize)
+(define-process-upkeep ((process T) now) (REPEAT-UNTIL callback finalize)
   "Repeatedly calls CALLBACK: (TIME) --> (VALUES EVENTS DONE?) until DONE? is non-NIL.  Then, calls FINALIZE: (TIME) --> (EVENTS) once."
-  (multiple-value-bind (events done?) (funcall callback time)
+  (multiple-value-bind (events done?) (funcall callback now)
     (schedule* events)
     (cond
       ((and done? finalize)
-       (schedule* (funcall finalize time)))
+       (schedule* (funcall finalize now)))
       (t
        (push `(REPEAT-UNTIL ,callback ,finalize) (process-command-stack process))))))

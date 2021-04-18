@@ -236,27 +236,27 @@ NOTES:
 ;;; event producers for message passing infrastructure
 ;;;
 
-(define-object-handler ((courier courier) time)
+(define-object-handler ((courier courier) now)
   "Processes messages in the COURIER's I/O queue: messages bound for other COURIERs get forwarded, and messages bound for this COURIER get sorted into local mailboxes."
   (when (q-empty (courier-queue courier))
-    (schedule courier (+ time (/ (courier-processing-clock-rate courier))))
+    (schedule courier (+ now (/ (courier-processing-clock-rate courier))))
     (finish-with-scheduling))
   (let ((message (q-deq (courier-queue courier)))
         (*local-courier* courier))
     (cond
       ;; are we this message's destination?
       ((stash-local-message message)
-       (schedule courier time))
+       (schedule courier now))
       ;; otherwise, route it
       (t
        (multiple-value-bind (intermediate-destination time-to-deliver)
            (courier-courier->route courier (first message))
          (setf time-to-deliver (or time-to-deliver
                                    (courier-default-routing-time-step courier)))
-         (schedule courier (+ time (/ (courier-processing-clock-rate courier))))
+         (schedule courier (+ now (/ (courier-processing-clock-rate courier))))
          (schedule (ignorant-lambda
                      (deliver-message intermediate-destination message))
-                   (+ time time-to-deliver)))))))
+                   (+ now time-to-deliver)))))))
 
 ;;;
 ;;; standard message types

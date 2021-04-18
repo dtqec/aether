@@ -78,23 +78,23 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
   (setf (process-command-stack process)
         (append commands (process-command-stack process))))
 
-(defgeneric process-upkeep (server time command command-args)
+(defgeneric process-upkeep (server now command command-args)
   (:documentation "If a PROCESS has no pending requests to service, it may want to perform some computation of its own, which happens in this routine.  Such computations typically include sending messages and listening on private channels for responses.")
-  (:method (server time command command-args)
-    (declare (ignore time command-args))
+  (:method (server now command command-args)
+    (declare (ignore now command-args))
     (error "Undefined command ~a for server of type ~a."
            command (type-of server))))
 
-(defgeneric message-dispatch (node time)
+(defgeneric message-dispatch (node now)
   (:documentation "Use DEFINE-MESSAGE-DISPATCH to install methods here."))
 
-(defmacro define-message-handler (handler-name ((process process-type) (message message-type) time) &body body)
+(defmacro define-message-handler (handler-name ((process process-type) (message message-type) now) &body body)
   "Defines a function to be invoked by DEFINE-MESSAGE-DISPATCH."
   (multiple-value-bind (body decls documentation) (a:parse-body body :documentation t)
     (a:with-gensyms (command commands)
       `(defmethod ,handler-name ((,process ,process-type)
                                  (,message ,message-type)
-                                 ,time)
+                                 ,now)
          ,@decls
          ,@(list documentation)
          (with-scheduling
@@ -104,7 +104,7 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
                     (when (process-debug? ,process)
                       (apply #'log-entry
                              (append initargs
-                                     (list :time ,time
+                                     (list :time ,now
                                            :source-type ',process-type
                                            :source (process-public-address ,process)))))))
              (flet ((send-message (destination payload)
@@ -116,7 +116,7 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
                ,@body)))))))
 
 (define-message-handler handle-message-RTS
-    ((process process) (message message-RTS) time)
+    ((process process) (message message-RTS) now)
   "Default handler for when a `PROCESS' receives a `MESSAGE-RTS'. Throws an error."
   (error "Got an RTS"))
 
@@ -133,8 +133,8 @@ NOTES:
 
 WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you will probably stall the underlying `PROCESS' if you perform some waiting action here, like the analogue of a `SYNC-RECEIVE'."
   (setf clauses (append clauses `((message-RTS 'handle-message-RTS))))
-  (a:with-gensyms (node message time)
-    `(defmethod message-dispatch ((,node ,node-type) ,time)
+  (a:with-gensyms (node message now)
+    `(defmethod message-dispatch ((,node ,node-type) ,now)
        ,@(loop :for (message-type receiver . rest) :in clauses
                :for guard := (or (first rest) t)
                :collect `(when (let ((,node-type ,node))
@@ -147,14 +147,14 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
                              (,message-type
                               (when (process-debug? ,node)
                                 (log-entry :source-type ',node-type
-                                           :time ,time
+                                           :time ,now
                                            :entry-type 'handler-invoked
                                            :source (process-public-address ,node)
                                            :message-id (message-message-id ,message)
                                            :payload-type ',message-type))
                               (return-from message-dispatch
                                 (values
-                                 (funcall ,receiver ,node ,message ,time)
+                                 (funcall ,receiver ,node ,message ,now)
                                  t)))))))))
 
 ;; TODO: DEFINE-DPU-MACRO and DEFINE-DPU-FLET don't check syntactic sanity at

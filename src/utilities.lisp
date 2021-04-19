@@ -79,9 +79,9 @@ WARNING: This routine is based on MAPHASH, which has undefined behavior if the s
 
 (defmacro ignorant-lambda (&body body)
   "Defines an anonymous function that discards all of its arguments."
-  (a:with-gensyms (time)
-    `(lambda (,time)
-       (declare (ignore ,time))
+  (a:with-gensyms (rest)
+    `(lambda (&rest ,rest)
+       (declare (ignore ,rest))
        ,@body)))
 
 (defun peek (list)

@@ -47,13 +47,13 @@
 ;;;
 
 (define-broadcast-handler handle-broadcast-test
-    ((process process-tree-cast-test) (message broadcast-test) time)
+    ((process process-tree-cast-test) (message broadcast-test) now)
   "Pushes the `PROCESS's ID to a global list."
   (push (process-tree-id process) *broadcast-events*)
   (push-broadcast-frame :targets (process-tree-children process)))
 
 (define-broadcast-handler handle-broadcast-test-abort
-    ((process process-tree-cast-test) (message broadcast-test-abort) time)
+    ((process process-tree-cast-test) (message broadcast-test-abort) now)
   "Pushes the `PROCESS's ID to a global list, and potentially aborts the broadcast if the `PROCESS's ID is equal to `ABORT-ID'."
   (with-slots (abort-id) message
     (push (process-tree-id process) *broadcast-events*)
@@ -62,28 +62,28 @@
       (return-from-cast))))
 
 (define-broadcast-handler handle-broadcast-test-script
-    ((process process-tree-cast-test) (message broadcast-test-script) time)
+    ((process process-tree-cast-test) (message broadcast-test-script) now)
   "Pushes the `:PUSH-TIMES' command onto the stack."
   (with-slots (scalar) message
     (process-continuation process `(PUSH-TIMES ,scalar))
     (push-broadcast-frame :targets (process-tree-children process))))
 
 (define-broadcast-handler handle-broadcast-test-rts
-    ((process process-tree-cast-test) (message broadcast-test-rts) time)
+    ((process process-tree-cast-test) (message broadcast-test-rts) now)
   "Pushes the `PROCESS's ID to a global list."
   (push (process-tree-id process) *broadcast-events*)
   (push-broadcast-frame :targets (process-tree-children process)
                         :handle-rts? t))
 
 (define-convergecast-handler handle-convergecast-test
-    ((process process-tree-cast-test) (message convergecast-test) time)
+    ((process process-tree-cast-test) (message convergecast-test) now)
   "Puts the `PROCESS's ID as `INPUT' to the convergcast frame."
   (push-convergecast-frame :targets (process-tree-children process)
                            :func #'aether::reduce+
                            :input (process-tree-id process)))
 
 (define-convergecast-handler handle-convergecast-test-abort
-    ((process process-tree-cast-test) (message convergecast-test-abort) time)
+    ((process process-tree-cast-test) (message convergecast-test-abort) now)
   "Puts the `PROCESS's ID as `INPUT' to the convergcast frame, unless it is equal to `ABORT-ID', which triggers a `RETURN-FROM-CAST' and thus an abort of the convergecast operation."
   (with-slots (abort-id) message
     (push-convergecast-frame :targets (process-tree-children process)
@@ -93,7 +93,7 @@
       (return-from-cast 0))))
 
 (define-convergecast-handler handle-convergecast-test-script
-    ((process process-tree-cast-test) (message convergecast-test-script) time)
+    ((process process-tree-cast-test) (message convergecast-test-script) now)
   "Pushes the `:SET-TIMES' command onto the stack."
   (with-slots (scalar) message
     (process-continuation process `(SET-TIMES ,scalar))
@@ -102,7 +102,7 @@
                              :input (process-tree-id process))))
 
 (define-convergecast-handler handle-convergecast-test-rts
-    ((process process-tree-cast-test) (message convergecast-test-rts) time)
+    ((process process-tree-cast-test) (message convergecast-test-rts) now)
   "Puts the `PROCESS's ID as `INPUT' to the convergcast frame. In order to handle RTSes gracefully, our `FUNC' must also handle NILs."
   (labels ((null+ (input replies)
              (loop :for value :in (list* input replies)

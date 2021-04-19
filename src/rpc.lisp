@@ -5,7 +5,7 @@
 
 (in-package #:aether)
 
-;; TODO: this traps RETURN-FROM, but not FINISH-WITH-FUTURES.
+;; TODO: this traps RETURN-FROM, but not FINISH-WITH-SCHEDULING.
 (defmacro define-rpc-handler (handler-name
                               ((process process-type) (message message-type) now)
                               &body body)

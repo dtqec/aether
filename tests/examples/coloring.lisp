@@ -58,7 +58,7 @@
   "Coordinates with the node's `NEIGHBORS' so as to have a distinct `COLOR' value."
   (process-continuation process `(START))
   (when (zerop (process-coloring-workloads process))
-    (finish-with-futures))
+    (finish-with-scheduling))
   (setf (process-coloring-color process) (random 3))
   (with-replies (replies)
                 (send-message-batch #'make-message-color-query

@@ -151,7 +151,7 @@ This assumes that the return-value has already been set up, contributes the fact
     (flet ((delay-send (message time)
              (make-event :time time
                          :callback (ignorant-lambda
-                                     (with-futures
+                                     (with-scheduling
                                        (send-message (process-public-address server)
                                                      message)))))
            (test-expect (x)

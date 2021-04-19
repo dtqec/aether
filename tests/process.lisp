@@ -35,7 +35,7 @@
 ;; the message handlers
 
 (define-message-handler handle-msg-ping
-    ((box chatterbox) (message msg-ping) time)
+    ((box chatterbox) (message msg-ping) now)
   (with-slots (reply-channel) message
     (send-message reply-channel (make-msg-pong :vote (vote box)))))
 
@@ -46,13 +46,13 @@
 
 ;;; the process commands
 
-(define-process-upkeep ((box chatterbox) time)
+(define-process-upkeep ((box chatterbox) now)
     (START)
   (process-continuation box
                         `(PING ,*chatterbox-addresses*)
                         `(WAIT)))
 
-(define-process-upkeep ((box chatterbox) time)
+(define-process-upkeep ((box chatterbox) now)
     (PING addresses)
   (unless (endp addresses)
     (let* ((address (pop addresses))
@@ -65,12 +65,12 @@
          (unregister listen-channel)
          (process-continuation box `(TALLY ,(msg-pong-vote pong-message))))))))
 
-(define-process-upkeep ((box chatterbox) time)
+(define-process-upkeep ((box chatterbox) now)
     (TALLY vote)
   (incf (pongs box))
   (incf (tally box) vote))
 
-(define-process-upkeep ((box chatterbox) time)
+(define-process-upkeep ((box chatterbox) now)
     (WAIT)
   (process-continuation box `(WAIT)))
 

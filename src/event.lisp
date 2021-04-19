@@ -165,7 +165,7 @@ Provides some helper functions: SCHEDULE, SCHEDULE*, and FINISH-WITH-SCHEDULING.
 
 ;;; deprecated "future" naming scheme
 
-(defmacro with-future (&body body)
+(defmacro with-futures (&body body)
   "WARNING: This macro is deprecated in favor of `WITH-SCHEDULING` and will be removed in a future release.
 
 Stores an implicit set of EVENT objects to return when exiting the WITH-FUTURES block.

@@ -143,6 +143,36 @@ NOTE: \"RTS\" is short for \"Return To Sender\".")
         (error "I don't know how to route."))
       destination)))
 
+(defvar *courier-debug-table*)
+(setf (documentation '*courier-debug-table* 'variable)
+      "Bind this with an EQUAL hash-table to collect COURIER usage statistics.")
+
+(defgeneric courier-stash-debug-info (courier intermediate-destination time-to-deliver message)
+  (:documentation "Called by COURIER's default object handler. Stashes statistical usage info.")
+  (:method ((processing-courier courier) intermediate-destination time-to-deliver message)
+    ;; if we're not debugging, skip.
+    (when (boundp '*courier-debug-table*)
+      (destructuring-bind (destination-courier-id destination-mailbox . payload) message
+        (declare (ignore destination-mailbox payload))
+        ;; record immediate hop
+        (incf (gethash (list ':intermediate-destination
+                             (courier-id processing-courier)
+                             (courier-id intermediate-destination))
+                       *courier-debug-table*
+                       0))
+        ;; record the ultimate destination
+        (incf (gethash (list ':final-destination
+                             (courier-id processing-courier)
+                             destination-courier-id)
+                       *courier-debug-table*
+                       0))
+        ;; record how deep the queue is
+        (incf (gethash (list ':queue-depth
+                             (courier-id processing-courier)
+                             (q-len (aether::courier-queue processing-courier)))
+                       *courier-debug-table*
+                       0))))))
+
 (defun send-message (destination payload)
   "Sends the message `PAYLOAD' to be received at `DESTINATION', an `ADDRESS'.  Returns the `REPLY-CHANNEL' of the `PAYLOAD', if any."
   (check-type destination address)
@@ -253,6 +283,7 @@ NOTES:
            (courier-courier->route courier (first message))
          (setf time-to-deliver (or time-to-deliver
                                    (courier-default-routing-time-step courier)))
+         (courier-stash-debug-info courier intermediate-destination time-to-deliver message)
          (schedule courier (+ now (/ (courier-processing-clock-rate courier))))
          (schedule (ignorant-lambda
                      (deliver-message intermediate-destination message))

@@ -28,6 +28,7 @@
                              (:file "trace")))
                (:file "event")
                (:file "message")
+               (:file "courier")
                (:file "network")
                (:module "process"
                 :serial t

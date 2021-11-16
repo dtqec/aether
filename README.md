@@ -110,6 +110,10 @@ These "living" examples are run regularly as part of the test suite.
 `aether` is made available under the MIT license.
 See `LICENSE.md` in the source tree for more information.
 
+## Reference
+
+Eric C. Peterson and Peter J. Karalekas. 2021. `aether`: Distributed system emulation in Common Lisp. In *Proceedings of the 14th European Lisp Symposium (ELS’21)*. ACM, New York, NY, USA, 9 pages. https://doi.org/10.5281/zenodo.4713971
+
 ## See also
 
 * [ArXiv preprint](https://arxiv.org/abs/2011.06180)

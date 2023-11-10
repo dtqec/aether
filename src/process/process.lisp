@@ -126,6 +126,8 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
   + If supplied, `GUARD' is evaluated with the `PROCESS' in question bound to the place `PROCESS-TYPE'.  If `GUARD' evaluates to NIL, proceed to the next clause.
   + Check the message queue at the public address for an item of type `MESSAGE-TYPE'.  If such a message is found, call the associated `MESSAGE-HANDLER' with lambda triple (PROCESS MESSAGE TIME).  Otherwise, proceed to the next clause.
 
+There is one exception: the bare symbol CALL-NEXT-METHOD is also a legal clause, and it references to the message handling table installed via DEFINE-MESSAGE-DISPATCH on this process type's parent.
+
 NOTES:
   + If no clause is matched, execution proceeds to the semantics specified by `DEFINE-PROCESS-UPKEEP'.
   + Automatically appends a `MESSAGE-RTS' clause which calls `HANDLE-MESSAGE-RTS' and results in an error. Because of this, we set `CATCH-RTS?' to NIL when processing clauses and building `RECEIVE-MESSAGE' blocks. Otherwise, it would be impossible to override the default handling of `MESSAGE-RTS'es.
@@ -133,29 +135,41 @@ NOTES:
 
 WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you will probably stall the underlying `PROCESS' if you perform some waiting action here, like the analogue of a `SYNC-RECEIVE'."
   (setf clauses (append clauses `((message-RTS 'handle-message-RTS))))
-  (a:with-gensyms (node message now)
-    `(defmethod message-dispatch ((,node ,node-type) ,now)
-       ,@(loop :for (message-type receiver . rest) :in clauses
-               :for guard := (or (first rest) t)
-               :collect `(when (let ((,node-type ,node))
-                                 (declare (ignorable ,node-type))
-                                 ,guard)
-                           (receive-message ((process-key ,node) ,message
-                                             :catch-RTS? nil
-                                             :peruse-inbox? (process-peruse-inbox?
-                                                             ,node))
-                             (,message-type
-                              (when (process-debug? ,node)
-                                (log-entry :source-type ',node-type
-                                           :time ,now
-                                           :entry-type 'handler-invoked
-                                           :source (process-public-address ,node)
-                                           :message-id (message-message-id ,message)
-                                           :payload-type ',message-type))
-                              (return-from message-dispatch
-                                (values
-                                 (funcall ,receiver ,node ,message ,now)
-                                 t)))))))))
+  (a:with-gensyms (node message now results trapped?)
+    (let (emissions)
+      (dolist (clause clauses)
+        (cond
+          ((listp clause)
+           (destructuring-bind (message-type receiver . rest) clause
+             (push `(when (let ((,node-type ,node))
+                            (declare (ignorable ,node-type))
+                            ,(or (first rest) t))
+                      (receive-message ((process-key ,node) ,message
+                                        :catch-RTS? nil
+                                        :peruse-inbox? (process-peruse-inbox?
+                                                        ,node))
+                        (,message-type
+                         (when (process-debug? ,node)
+                           (log-entry :source-type ',node-type
+                                      :time ,now
+                                      :entry-type 'handler-invoked
+                                      :source (process-public-address ,node)
+                                      :message-id (message-message-id ,message)
+                                      :payload-type ',message-type))
+                         (return-from message-dispatch
+                           (values
+                            (funcall ,receiver ,node ,message ,now)
+                            t)))))
+                   emissions)))
+          ((and (symbolp clause) (string= "CALL-NEXT-METHOD" (symbol-name clause)))
+           (push `(multiple-value-bind (,results ,trapped?) (call-next-method)
+                    (when ,trapped?
+                      (return-from message-dispatch (values ,results ,trapped?))))
+                 emissions))
+          (t
+           (error "Bad DEFINE-MESSAGE-DISPATCH clause: ~a" clause))))
+      `(defmethod message-dispatch ((,node ,node-type) ,now)
+         ,@(reverse emissions)))))
 
 ;; TODO: DEFINE-DPU-MACRO and DEFINE-DPU-FLET don't check syntactic sanity at
 ;;       their runtime, they wait for DEFINE-PROCESS-UPKEEP to discover it.

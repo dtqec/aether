@@ -163,12 +163,13 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
               ((and (symbolp clause) (string= "CALL-NEXT-METHOD" (symbol-name clause)))
                `(multiple-value-bind (,results ,trapped?) (call-next-method)
                   (when ,trapped?
-                    (return-from message-dispatch (values ,results ,trapped?)))))
+                    (return-from %message-dispatch (values ,results ,trapped?)))))
               (t
                (error "Bad DEFINE-MESSAGE-DISPATCH clause: ~a" clause))))
           clauses))))
 
 (defun message-dispatch (node now)
+  "Use DEFINE-MESSAGE-DISPATCH to install methods here."
   (multiple-value-bind (results trapped?) (%message-dispatch node now)
     (when trapped?
       (return-from message-dispatch (values results trapped?)))

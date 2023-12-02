@@ -160,30 +160,31 @@
   (with-slots (aborting? downward-rx-latches downward-tx-latches
                upward-rx-latch upward-tx-latch)
       process
-    (let ((new-downward-rx-latches
-            (send-message-batch #'make-message-lock targets)))
-      (with-replies (new-downward-tx-latches :returned? returned? :close? nil)
-                    new-downward-rx-latches
-        (when (and (not aborting?) returned?)
-          (log-entry :entry-type 'aborting-lock
-                     :reason 'broadcast-lock-returned
-                     :returned? returned?))
-        (setf aborting? (or aborting? returned?))
-        (loop :for downward-rx-latch :in new-downward-rx-latches
-              :for downward-tx-latch :in new-downward-tx-latches
-              :do (cond
-                    (downward-tx-latch
-                     (push downward-tx-latch downward-tx-latches)
-                     (push downward-rx-latch downward-rx-latches))
-                    (t
-                     (unregister downward-rx-latch)
-                     (log-entry :entry-type 'aborting-lock
-                                :reason 'no-downward-tx-latch)
-                     (setf aborting? t))))
-        (when upward-tx-latch
-          (setf upward-rx-latch (unless aborting? (register)))
-          (send-message upward-tx-latch
-                        (make-message-rpc-done :result upward-rx-latch)))))))
+    (unless aborting?
+      (let ((new-downward-rx-latches
+              (send-message-batch #'make-message-lock targets)))
+        (with-replies (new-downward-tx-latches :returned? returned? :close? nil)
+                      new-downward-rx-latches
+          (when (and (not aborting?) returned?)
+            (log-entry :entry-type 'aborting-lock
+                       :reason 'broadcast-lock-returned
+                       :returned? returned?))
+          (setf aborting? (or aborting? returned?))
+          (loop :for downward-rx-latch :in new-downward-rx-latches
+                :for downward-tx-latch :in new-downward-tx-latches
+                :do (cond
+                      (downward-tx-latch
+                       (push downward-tx-latch downward-tx-latches)
+                       (push downward-rx-latch downward-rx-latches))
+                      (t
+                       (unregister downward-rx-latch)
+                       (log-entry :entry-type 'aborting-lock
+                                  :reason 'no-downward-tx-latch)
+                       (setf aborting? t))))
+          (when upward-tx-latch
+            (setf upward-rx-latch (unless aborting? (register)))
+            (send-message upward-tx-latch
+                          (make-message-rpc-done :result upward-rx-latch))))))))
 
 (define-process-upkeep ((process process-lockable) now)
     (%WAIT-FOR-UNLOCK)

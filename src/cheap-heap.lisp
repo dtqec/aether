@@ -55,3 +55,16 @@
      (q-peek (cdaddr heap)))
     (t
      nil)))
+
+(defun cheap-heap-empty? (heap)
+  (equalp heap (make-cheap-heap)))
+
+(defun cheap-heap->list (heap)
+  (labels ((aux (heap &optional (list nil))
+             (let ((next (cheap-heap-dequeue heap)))
+               (cond
+                 ((null next)
+                  (reverse list))
+                 (t
+                  (aux heap (list* next list)))))))
+    (aux heap)))

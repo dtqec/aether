@@ -39,6 +39,8 @@
    #:cheap-heap-enqueue                 ; FUNCTION
    #:cheap-heap-dequeue                 ; FUNCTION
    #:cheap-heap-peep                    ; FUNCTION
+   #:cheap-heap-empty?                  ; FUNCTION (PREDICATE)
+   #:cheap-heap->list                   ; FUNCTION
    )
   
   ;; logger.lisp

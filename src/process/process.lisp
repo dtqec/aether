@@ -97,23 +97,22 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
                                  ,now)
          ,@decls
          ,@(list documentation)
-         (with-scheduling
-           (check-type ,message ,message-type)
-           (check-type ,process ,process-type)
-           (flet ((log-entry (&rest initargs)
-                    (when (process-debug? ,process)
-                      (apply #'log-entry
-                             (append initargs
-                                     (list :time ,now
-                                           :source-type ',process-type
-                                           :source (process-public-address ,process)))))))
-             (flet ((send-message (destination payload)
-                      (log-entry :entry-type 'send-message
-                                 :destination destination
-                                 :payload (copy-structure payload))
-                      (send-message destination payload)))
-               (declare (ignorable #'send-message))
-               ,@body)))))))
+         (check-type ,message ,message-type)
+         (check-type ,process ,process-type)
+         (flet ((log-entry (&rest initargs)
+                  (when (process-debug? ,process)
+                    (apply #'log-entry
+                           (append initargs
+                                   (list :time ,now
+                                         :source-type ',process-type
+                                         :source (process-public-address ,process)))))))
+           (flet ((send-message (destination payload)
+                    (log-entry :entry-type 'send-message
+                               :destination destination
+                               :payload (copy-structure payload))
+                    (send-message destination payload)))
+             (declare (ignorable #'send-message))
+             ,@body))))))
 
 (define-message-handler handle-message-RTS
     ((process process) (message message-RTS) now)
@@ -134,7 +133,7 @@ NOTES:
   + `PROCESS-PERUSE-INBOX?' is passed along to `RECEIVE-MESSAGE', where it determines how we search for a message to handle.
 
 WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you will probably stall the underlying `PROCESS' if you perform some waiting action here, like the analogue of a `SYNC-RECEIVE'."
-  (a:with-gensyms (node message now results trapped?)
+  (a:with-gensyms (node message now results)
     `(defmethod %message-dispatch ((,node ,node-type) ,now)
        ,@(mapcar
           (lambda (clause)
@@ -143,9 +142,8 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
                     (= 1 (length clause))
                     (symbolp (first clause))
                     (string= "CALL-NEXT-METHOD" (symbol-name (first clause))))
-               `(multiple-value-bind (,results ,trapped?) (call-next-method)
-                  (when ,trapped?
-                    (return-from %message-dispatch (values ,results ,trapped?)))))
+               `(when (call-next-method)
+                  (return-from %message-dispatch ,results)))
               ((and (listp clause)
                     (member (length clause) '(2 3)))
                (destructuring-bind (message-type receiver . rest) clause
@@ -164,10 +162,8 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
                                     :source (process-public-address ,node)
                                     :message-id (message-message-id ,message)
                                     :payload-type ',message-type))
-                       (return-from %message-dispatch
-                         (values
-                          (funcall ,receiver ,node ,message ,now)
-                          t)))))))
+                       (funcall ,receiver ,node ,message ,now)
+                       (return-from %message-dispatch t))))))
               (t
                (error "Bad DEFINE-MESSAGE-DISPATCH clause: ~a" clause))))
           clauses))))
@@ -175,21 +171,22 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
 (defun message-dispatch (node now)
   "Use DEFINE-MESSAGE-DISPATCH to install methods here."
   (multiple-value-bind (results trapped?) (%message-dispatch node now)
+    (declare (ignore results))
     (when trapped?
-      (return-from message-dispatch (values results trapped?)))
-    (receive-message ((process-key node) message
-                      :catch-RTS? nil  ; we do this ourselves so we can log-entry
-                      :peruse-inbox? (process-peruse-inbox? node))
-      (message-RTS
-       (when (process-debug? node)
-         (log-entry :source-type (type-of node)
-                    :time now
-                    :entry-type 'handler-invoked
-                    :source (process-public-address node)
-                    :message-id (message-message-id message)
-                    :payload-type (type-of message)))
-       (return-from message-dispatch
-         (values (funcall 'handle-message-RTS node message now) t))))))
+      (return-from message-dispatch t)))
+  (receive-message ((process-key node) message
+                    :catch-RTS? nil ; we do this ourselves so we can log-entry
+                    :peruse-inbox? (process-peruse-inbox? node))
+    (message-RTS
+     (when (process-debug? node)
+       (log-entry :source-type (type-of node)
+                  :time now
+                  :entry-type 'handler-invoked
+                  :source (process-public-address node)
+                  :message-id (message-message-id message)
+                  :payload-type (type-of message)))
+     (return-from message-dispatch
+       (values (funcall 'handle-message-RTS node message now) t)))))
 
 ;; TODO: DEFINE-DPU-MACRO and DEFINE-DPU-FLET don't check syntactic sanity at
 ;;       their runtime, they wait for DEFINE-PROCESS-UPKEEP to discover it.
@@ -282,7 +279,7 @@ PROCESS is COMMAND is a KEYWORD, and COMMAND-ARGS is a DESTRUCTURING-BIND-LAMBDA
 Locally enables the use of the function PROCESS-DIE and the special form SYNC-RECEIVE."
   (check-type command symbol)
   (multiple-value-bind (body decls docstring) (a:parse-body body :documentation t)
-    (a:with-gensyms (command-place argument-list active? events)
+    (a:with-gensyms (command-place argument-list active?)
       (let ((macrolet-definitions (%dpu-macrolet-definitions :process-name process-name
                                                              :now now))
             (flet-definitions (%dpu-flet-definitions :active? active?
@@ -305,44 +302,37 @@ Locally enables the use of the function PROCESS-DIE and the special form SYNC-RE
                                        (list :source (process-public-address ,process-name)
                                              :source-type ',process-type
                                              :time ,now))))))
-               (initialize-and-return ((,active? t) (,events nil))
-                 (setf ,events
-                       (with-scheduling
-                         (destructuring-bind ,command-args ,argument-list
-                           ,@decls
-                           (macrolet ,macrolet-definitions
-                             ;; install log wrappers around common functions
-                             (flet ,flet-definitions
-                               (declare (ignorable ,@(loop :for (name . rest) :in flet-definitions
-                                                           :collect `#',name)))
-                               ;; announce start of upkeep
-                               (log-entry :entry-type 'command
-                                          :command ',command
-                                          :arguments (copy-seq ,argument-list)
-                                          :next-command (caar (process-command-stack ,process-name)))
-                               ,@body)))))))))))))
+               (initialize-and-return ((,active? t))
+                 (destructuring-bind ,command-args ,argument-list
+                   ,@decls
+                   (macrolet ,macrolet-definitions
+                     ;; install log wrappers around common functions
+                     (flet ,flet-definitions
+                       (declare (ignorable ,@(loop :for (name . rest) :in flet-definitions
+                                                   :collect `#',name)))
+                       ;; announce start of upkeep
+                       (log-entry :entry-type 'command
+                                  :command ',command
+                                  :arguments (copy-seq ,argument-list)
+                                  :next-command (caar (process-command-stack ,process-name)))
+                       ,@body)))))))))))
 
 (define-object-handler ((process process) time)
   "Determines the behavior of a generic PROCESS. See DEFINE-MESSAGE-DISPATCH and DEFINE-PROCESS-UPKEEP for details."
-  (with-slots (process-key process-clock-rate process-exhaust-inbox?) process
-    (let ((*local-courier* (process-courier process))
-          (active? nil))
-      (multiple-value-bind (events progress?)
-          (message-dispatch process time)
-        (when progress?
-          (schedule* events)
+  (block nil
+    (with-slots (process-key process-clock-rate process-exhaust-inbox?) process
+      (let ((*local-courier* (process-courier process))
+            (active? nil))
+        (when (message-dispatch process time)
           (when process-exhaust-inbox?
             (schedule process time)
-            (finish-with-scheduling))))
-      (when (peek (process-command-stack process))
-        (destructuring-bind (command &rest args) (pop (process-command-stack process))
-          (multiple-value-bind (events active-after-action)
-              (process-upkeep process time command args)
-            (schedule* events)
-            (setf active? active-after-action))))
-      (cond
-        (active?
-         (schedule process (+ time (/ process-clock-rate))))
-        ;; tear down the process
-        ((not active?)
-         (unregister (process-key process)))))))
+            (return)))
+        (when (peek (process-command-stack process))
+          (destructuring-bind (command &rest args) (pop (process-command-stack process))
+            (setf active? (process-upkeep process time command args))))
+        (cond
+          (active?
+           (schedule process (+ time (/ process-clock-rate))))
+          ;; tear down the process
+          ((not active?)
+           (unregister (process-key process))))))))

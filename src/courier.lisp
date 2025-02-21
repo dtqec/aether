@@ -114,6 +114,9 @@
                  (courier-id *local-courier*))
           ()
           "ADDRESS must belong to *LOCAL-COURIER*.")
+  (assert (nth-value 1 (gethash (address-channel address) (courier-secrets *local-courier*)))
+          ()
+          "Local ADDRESS is not registered to *LOCAL-COURIER*.")
   (assert (eql (address-secret address)
                (gethash (address-channel address)
                         (courier-secrets *local-courier*)))
@@ -187,18 +190,14 @@ NOTES:
   Returns as a secondary value whether a message was processed.  (An `OTHERWISE' clause also results in a secondary value of NIL.)"
   (when catch-RTS?
     (setf clauses (append clauses `((message-RTS (error "Got an RTS."))))))
-  (unless (eql 0 timeout)
-    (error "Blocking RECEIVE-MESSAGE not currently supported."))
+  (assert (zerop timeout) () "Blocking RECEIVE-MESSAGE not currently supported.")
   (a:with-gensyms (block-name inbox found? q-deq-fn)
     (flet ((process-clause (clause-head clause-body)
              `(a:when-let ((,message
-                           (funcall ,q-deq-fn ,inbox
-                                    (lambda (m) (typep m ',clause-head)))))
-               (return-from ,block-name
-                 (values
-                  (progn
-                    ,@clause-body)
-                  t)))))
+                            (funcall ,q-deq-fn ,inbox
+                                     (lambda (m) (typep m ',clause-head)))))
+                (return-from ,block-name
+                  (values (progn ,@clause-body) t)))))
       `(block ,block-name
          (check-key-secret ,address)
          (let ((,q-deq-fn (if ,peruse-inbox? #'q-deq-first #'q-deq-when)))
@@ -212,8 +211,10 @@ NOTES:
              ,@(loop :for (clause-head . clause-body) :in clauses
                      :unless (eql 'otherwise clause-head)
                        :collect (process-clause clause-head clause-body))
-             (values (progn ,@(cdr (find 'otherwise clauses :key #'car)))
-                     nil)))))))
+             (values
+              (progn
+                ,@(cdr (find 'otherwise clauses :key #'car)))
+              nil)))))))
 
 ;;;
 ;;; event producers for message passing infrastructure
@@ -223,7 +224,7 @@ NOTES:
   "Processes messages in the COURIER's I/O queue: messages bound for other COURIERs get forwarded, and messages bound for this COURIER get sorted into local mailboxes."
   (when (q-empty (courier-queue courier))
     (schedule courier (+ now (/ (courier-processing-clock-rate courier))))
-    (finish-with-scheduling))
+    (return))
   (let ((message (q-deq (courier-queue courier)))
         (*local-courier* courier))
     (cond

@@ -84,7 +84,7 @@
 
 (define-convergecast-handler handle-convergecast-test-abort
     ((process process-tree-cast-test) (message convergecast-test-abort) now)
-  "Puts the `PROCESS's ID as `INPUT' to the convergcast frame, unless it is equal to `ABORT-ID', which triggers a `RETURN-FROM-CAST' and thus an abort of the convergecast operation."
+  "Puts the `PROCESS's ID as `INPUT' to the convergecast frame, unless it is equal to `ABORT-ID', which triggers a `RETURN-FROM-CAST' and thus an abort of the convergecast operation."
   (with-slots (abort-id) message
     (push-convergecast-frame :targets (process-tree-children process)
                              :func #'aether::reduce+
@@ -182,17 +182,20 @@
                                    ;; Events don't necessarily come in ID order
                                    ;; when using a script, we just are guaranteed
                                    ;; that parents come before children.
-                                   (mapcar #'*-scalar '(9 8 10 5 4 3 7 6 2 1 0))
+                                   (mapcar #'*-scalar '(10 9 8 7 6 5 4 3 2 1 0))
                                    ;; For this test we kill process 10, so it is
-                                   ;; not included in the ledger. Interestingly,
-                                   ;; we also get the IDs in a different order.
-                                   '(9 8 5 4 3 7 6 2 1 0))
+                                   ;; not included in the ledger.
+                                   '(9 8 7 6 5 4 3 2 1 0))
                   :for time :in (list 10 20 40 50)
                   :for kill? :in (list nil nil nil T)
                   :do (setf *broadcast-events* nil)
                       (when kill?
                         (setf (process-command-stack (nth 10 processes)) '((HALT))))
-                      (send-message (process-public-address (nth 0 processes)) message)
+                      (simulation-run simulation
+                                      :canary (canary-until
+                                               (1+ (simulation-horizon simulation))))
+                      (aether::with-active-simulation simulation
+                        (send-message (process-public-address (nth 0 processes)) message))
                       (simulation-run simulation :canary (canary-until time))
                       (receive-message (rx-channel broadcast-ack)
                         (message-rpc-done
@@ -228,7 +231,11 @@
                 :for kill? :in (list nil nil nil T)
                 :do (when kill?
                       (setf (process-command-stack (nth 10 processes)) '((HALT))))
-                    (send-message (process-public-address (nth 0 processes)) message)
+                    (simulation-run simulation
+                                    :canary (canary-until
+                                             (1+ (simulation-horizon simulation))))
+                    (aether::with-active-simulation simulation
+                        (send-message (process-public-address (nth 0 processes)) message))
                     (simulation-run simulation :canary (canary-until time))
                     (receive-message (rx-channel convergecast-response)
                       (message-rpc-done

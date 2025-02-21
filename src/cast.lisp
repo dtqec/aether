@@ -38,22 +38,21 @@ WARNING: `RETURN-FROM-CAST' calls `PUSH-BROADCAST-FRAME' as part of the aborting
        (let ((,broadcast-frame nil)
              (,message (copy-message message))
              (,reply-channel (message-reply-channel ,message)))
-         (flet ((push-broadcast-frame (&key aborting?
-                                            handle-rts?
-                                            (message ,message)
-                                            targets)
-                  ;; We would like to prevent the user from pushing more than
-                  ;; one `BROADCAST-FRAME' onto the `PROCESS-DATA-STACK'.
-                  (assert (null ,broadcast-frame) ()
-                          "Cannot push two BROADCAST-FRAMEs from one handler.")
-                  (setf ,broadcast-frame
-                        (make-broadcast-frame :aborting? aborting?
-                                              :handle-rts? handle-rts?
-                                              :message message
-                                              :targets targets))
-                  (push ,broadcast-frame (process-data-stack ,process))))
-           (declare (ignorable #'push-broadcast-frame))
-           (flet ((return-from-cast (&optional value (reason 'none-provided))
+         (labels ((push-broadcast-frame (&key aborting?
+                                              handle-rts?
+                                              (message ,message)
+                                              targets)
+                    ;; We would like to prevent the user from pushing more than
+                    ;; one `BROADCAST-FRAME' onto the `PROCESS-DATA-STACK'.
+                    (assert (null ,broadcast-frame) ()
+                            "Cannot push two BROADCAST-FRAMEs from one handler.")
+                    (setf ,broadcast-frame
+                          (make-broadcast-frame :aborting? aborting?
+                                                :handle-rts? handle-rts?
+                                                :message message
+                                                :targets targets))
+                    (push ,broadcast-frame (process-data-stack ,process)))
+                  (return-from-cast (&optional value (reason 'none-provided))
                     (log-entry :entry-type 'terminating-broadcast
                                :reason reason)
                     ;; Push a frame with `:ABORTING?' set to T, so that the
@@ -65,13 +64,13 @@ WARNING: `RETURN-FROM-CAST' calls `PUSH-BROADCAST-FRAME' as part of the aborting
                     (when ,reply-channel
                       (send-message ,reply-channel (make-message-rpc-done
                                                     :result value)))
-                    (finish-with-scheduling)))
-             (declare (ignorable #'return-from-cast))
-             ;; Push `BROADCAST' before executing the body, in case the body
-             ;; pushes an additional script onto the command stack that is
-             ;; meant to be executed before continuing the broadcast.
-             (process-continuation ,process `(BROADCAST))
-             ,@body))))))
+                    (return-from ,handler-name)))
+           (declare (ignorable #'push-broadcast-frame #'return-from-cast))
+           ;; Push `BROADCAST' before executing the body, in case the body
+           ;; pushes an additional script onto the command stack that is
+           ;; meant to be executed before continuing the broadcast.
+           (process-continuation ,process `(BROADCAST))
+           ,@body)))))
 
 (define-process-upkeep ((process process) now)
     (BROADCAST)
@@ -173,7 +172,7 @@ WARNING: `RETURN-FROM-CAST' calls `PUSH-CONVERGECAST-FRAME' as part of the abort
                     (when ,reply-channel
                       (send-message ,reply-channel (make-message-rpc-done
                                                     :result value)))
-                    (finish-with-scheduling)))
+                    (return-from ,handler-name)))
              (declare (ignorable #'return-from-cast))
              (process-continuation ,process `(CONVERGECAST))
              ,@body))))))

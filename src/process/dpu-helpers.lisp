@@ -62,13 +62,12 @@
   (a:with-gensyms (repeater finalizer)
     `(flet ((,repeater (,now)
               (declare (ignorable ,now))
-              (with-scheduling ,@repeater-body))
+              ,@repeater-body)
             (,finalizer (,now)
               (declare (ignorable ,now))
-              (with-scheduling ,@finalizer-body)))
+              ,@finalizer-body))
        (push (list 'REPEAT-UNTIL #',repeater #',finalizer)
-             (process-command-stack ,process-name))
-       (finish-with-scheduling))))
+             (process-command-stack ,process-name)))))
 
 ;; TODO: "SYNC"-RECEIVE is a somewhat misleading name.
 ;;       it's more like a busywaiting callback?
@@ -78,25 +77,24 @@
 IMPORTANT WARNING: `SYNC-RECEIVE' returns after it finishes executing its body.  Any code following a `SYNC-RECEIVE' **will not** be executed.
 
 NOTE: `MESSAGE-RTS' replies must be explicitly handled.  Otherwise, the default behavior is to throw an error, which can be seen in the definition of `RECEIVE-MESSAGE'."
-  (a:with-gensyms (sr-events sr-done? record)
+  (a:with-gensyms (retval sr-done? record)
     `(%install-repeat-until
          ((log-entry :entry-type 'command
                      :time ,now
                      :command 'sync-receive
                      :next-command (caar (process-command-stack ,process-name))
                      :sync-channel ,sync-channel)
-           (multiple-value-bind (,sr-events ,sr-done?)
+           (multiple-value-bind (,retval ,sr-done?)
                (receive-message (,sync-channel ,sync-message-place)
                  ,@(loop :for (clause-head . clause-body) :in sync-clauses
                          :collect `(,clause-head
-                                    (with-scheduling
-                                      (a:when-let ((,record (process-debug? ,process-name)))
-                                        (setf ,record (list* ':delta (- ,now (getf ,record ':time))
-                                                             ,record))
-                                        (remf ,record ':time)
-                                        (apply #'tracer-store ,record))
-                                      ,@clause-body))))
-             (schedule* ,sr-events)
+                                    (a:when-let ((,record (process-debug? ,process-name)))
+                                      (setf ,record (list* ':delta (- ,now (getf ,record ':time))
+                                                           ,record))
+                                      (remf ,record ':time)
+                                      (apply #'tracer-store ,record))
+                                    ,@clause-body)))
+             (declare (ignore ,retval))
              ,sr-done?))
          (
           ;; no finalization after finishing the receive
@@ -166,11 +164,10 @@ Typical use looks like:
 ;;;
 
 (define-process-upkeep ((process T) now) (REPEAT-UNTIL callback finalize)
-  "Repeatedly calls CALLBACK: (TIME) --> (VALUES EVENTS DONE?) until DONE? is non-NIL.  Then, calls FINALIZE: (TIME) --> (EVENTS) once."
-  (multiple-value-bind (events done?) (funcall callback now)
-    (schedule* events)
+  "Repeatedly calls CALLBACK: (TIME) --> DONE? until DONE? is non-NIL.  Then, calls FINALIZE: (TIME) --> (EVENTS) once."
+  (let ((done? (funcall callback now)))
     (cond
       ((and done? finalize)
-       (schedule* (funcall finalize now)))
+       (funcall finalize now))
       (t
        (push `(REPEAT-UNTIL ,callback ,finalize) (process-command-stack process))))))

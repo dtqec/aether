@@ -38,7 +38,7 @@
              :source-type (type-of c)
              :time now
              :entry-type 'c)
-  (schedule* (call-next-method)))
+  (call-next-method))
 
 (deftest test-event-loop ()
   (with-transient-logger ()

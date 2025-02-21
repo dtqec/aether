@@ -64,6 +64,7 @@
    #:make-simulation                    ; FUNCTION
    #:simulation-add-event               ; FUNCTION
    #:simulation-run                     ; FUNCTION
+   #:simulation-horizon                 ; FUNCTION (ACCESSOR)
    
    #:with-scheduling                    ; MACRO
    #:schedule                           ; FUNCTION

@@ -148,7 +148,7 @@ Provides some helper functions: SCHEDULE, SCHEDULE*, and FINISH-WITH-SCHEDULING.
 ;;;
 
 (defmacro with-active-simulation (simulation &body body)
-  ""
+  "Useful for sending messages 'outside' a simulation actor."
   (a:once-only ((simulation simulation))
     (a:with-gensyms (event events last-value)
       `(multiple-value-bind (,events ,last-value)

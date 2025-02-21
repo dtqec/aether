@@ -70,6 +70,7 @@
    #:schedule                           ; FUNCTION
    #:schedule*                          ; FUNCTION
    #:finish-with-scheduling             ; MACRO
+   #:with-active-simulation             ; MACRO
    
    #:canary-until                       ; FUNCTION
    #:canary-timeout                     ; FUNCTION

@@ -35,7 +35,8 @@
 `INBOXES': A hash table mapping channels serviced by this courier to mailbox queues.
 `SECRETS': A hash table mapping channels serviced by this courier to the private sigils used to distinguish mailbox owners.
 `ID': A unique identifier for this courier. WARNING: Expect subclasses of `COURIER' to require specific types and values here.
-`NEIGHBORS': Used to store routing information. WARNING: By default, this is a hash mapping courier `ID's in the network to their object instances. Expect subclasses of `COURIER' to install different types and values here."
+`NEIGHBORS': Used to store routing information. WARNING: By default, this is a hash mapping courier `ID's in the network to their object instances. Expect subclasses of `COURIER' to install different types and values here.
+`AWAKE?': Couriers which are not processing inbound messages fall asleep."
   (queue (make-q)) ; messages not yet sorted
   (inboxes (make-hash-table :test 'eq))
   (secrets (make-hash-table :test 'eq))
@@ -43,6 +44,7 @@
   (default-routing-time-step *routing-time-step*)
   (id (get-courier-index))
   (neighbors (make-hash-table))
+  (asleep-since nil)  ; :type (or nil 'fraction)
   ; TODO GH-28: listeners?
   )
 
@@ -125,6 +127,7 @@
 
 (defun deliver-message (processing-courier message)
   "Used to simulate the transmission of a message to the next COURIER."
+  (wake-up processing-courier)
   (q-enq message (courier-queue processing-courier))
   (values))
 
@@ -223,7 +226,7 @@ NOTES:
 (define-object-handler ((courier courier) now)
   "Processes messages in the COURIER's I/O queue: messages bound for other COURIERs get forwarded, and messages bound for this COURIER get sorted into local mailboxes."
   (when (q-empty (courier-queue courier))
-    (schedule courier (+ now (/ (courier-processing-clock-rate courier))))
+    (setf (courier-asleep-since courier) now)
     (return))
   (let ((message (q-deq (courier-queue courier)))
         (*local-courier* courier))
@@ -237,7 +240,16 @@ NOTES:
            (courier-courier->route courier (first message))
          (setf time-to-deliver (or time-to-deliver
                                    (courier-default-routing-time-step courier)))
-         (schedule courier (+ now (/ (courier-processing-clock-rate courier))))
          (schedule (ignorant-lambda
                      (deliver-message intermediate-destination message))
-                   (+ now time-to-deliver)))))))
+                   (+ now time-to-deliver))
+         (schedule courier (+ now (/ (courier-processing-clock-rate courier)))))))))
+
+(defmethod wake-up ((courier courier))
+  (a:when-let* ((since (courier-asleep-since courier))
+                (next-tick (+ (now)
+                              (/ (ceiling (- (now) since)
+                                          *courier-processing-clock-rate*)
+                                 *courier-processing-clock-rate*))))
+    (setf (courier-asleep-since courier) nil)
+    (schedule courier next-tick)))

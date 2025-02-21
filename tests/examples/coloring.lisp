@@ -300,9 +300,10 @@
             (*local-courier* (aref couriers 0))
             (middle-pos (floor node-count 2)))
         ;; delete a couple of nodes
-        (send-message-batch #'make-message-kill (mapcar #'process-public-address
-                                                        (list (aref nodes middle-pos)
-                                                              (aref nodes 0))))
+        (with-active-simulation simulation
+          (send-message-batch #'make-message-kill (mapcar #'process-public-address
+                                                          (list (aref nodes middle-pos)
+                                                                (aref nodes 0)))))
         (setf nodes (concatenate 'vector
                                  (subseq nodes 1 middle-pos)
                                  (subseq nodes (1+ middle-pos))))
@@ -331,9 +332,10 @@
           (break)
           (return-from test-unstable-node-deletion (test-unstable-node-deletion)))
         ;; delete a couple of nodes
-        (send-message-batch #'make-message-kill (mapcar #'process-public-address
-                                                        (list (aref nodes middle-pos)
-                                                              (aref nodes 0))))
+        (with-active-simulation simulation
+          (send-message-batch #'make-message-kill (mapcar #'process-public-address
+                                                          (list (aref nodes middle-pos)
+                                                                (aref nodes 0)))))
         (setf nodes (concatenate 'vector
                                  (subseq nodes 1 middle-pos)
                                  (subseq nodes (1+ middle-pos))))

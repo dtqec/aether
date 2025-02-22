@@ -51,6 +51,14 @@
                :payload-constructor payload-constructor
                :replies? replies?)))
 
+(define-dpu-flet wake-on-network (&optional private-mailboxes)
+  (dolist (mailbox (list* (process-public-address process-name)
+                          private-mailboxes))
+    (push process-name (gethash (address-channel mailbox)
+                                (courier-listeners *local-courier*))))
+  (setf (process-asleep-since process-name) now)
+  (values))
+
 ;;;
 ;;; macros
 ;;;
@@ -95,6 +103,8 @@ NOTE: `MESSAGE-RTS' replies must be explicitly handled.  Otherwise, the default 
                                       (apply #'tracer-store ,record))
                                     ,@clause-body)))
              (declare (ignore ,retval))
+             (unless ,sr-done?
+               (wake-on-network (list ,sync-channel)))
              ,sr-done?))
          (
           ;; no finalization after finishing the receive
@@ -151,6 +161,8 @@ Typical use looks like:
                            T))
                     :collect (cons ,listener ,reply) :into ,new-remainder
                   :finally (setf ,remainder ,new-remainder))
+            (unless (endp ,remainder)
+              (wake-on-network (mapcar #'car ,remainder)))
             (endp ,remainder))
            (;; finalizer
             (a:when-let ((,record (process-debug? ,process-name)))

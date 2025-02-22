@@ -140,6 +140,8 @@
    #:spawn-process                      ; FUNCTION
 
    #:define-message-subordinate         ; MACRO
+   
+   #:wake-on-network                    ; FUNCTION
    )
   
   ;; rpc.lisp

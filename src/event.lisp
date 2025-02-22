@@ -176,8 +176,8 @@ Provides some helper functions: SCHEDULE, SCHEDULE*, and FINISH-WITH-SCHEDULING.
         (otherwise (handle-object (event-callback event) (event-time event))))
       (dolist (new-event *scheduling-accumulator*)
         (check-type new-event event)
-        (simulation-add-event simulation new-event))
-      (simulation-run simulation :canary canary))))
+        (simulation-add-event simulation new-event)))
+    (simulation-run simulation :canary canary)))
 
 (defmacro define-object-handler (((object-variable object-type) time-variable) &body body)
   "Defines a default event handler for OBJECT-TYPE."

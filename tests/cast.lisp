@@ -176,16 +176,15 @@
                                     (make-broadcast-test-rts
                                      :reply-channel rx-channel))
                   :for answer :in (list
-                                   (reverse (alexandria:iota 11))
-                                   (remove-all '(6 7 10)
-                                               (reverse (alexandria:iota 11)))
                                    ;; Events don't necessarily come in ID order
-                                   ;; when using a script, we just are guaranteed
-                                   ;; that parents come before children.
-                                   (mapcar #'*-scalar '(10 9 8 7 6 5 4 3 2 1 0))
+                                   ;; we just are guaranteed that parents come
+                                   ;; before children.
+                                   (reverse (alexandria:iota 11))
+                                   '(9 8 3 5 4 2 1 0)
+                                   (mapcar #'*-scalar '(9 8 10 3 5 4 6 7 1 2 0))
                                    ;; For this test we kill process 10, so it is
                                    ;; not included in the ledger.
-                                   '(9 8 7 6 5 4 3 2 1 0))
+                                   '(9 8 3 6 5 4 7 1 2 0))
                   :for time :in (list 10 20 40 50)
                   :for kill? :in (list nil nil nil T)
                   :do (setf *broadcast-events* nil)

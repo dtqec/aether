@@ -36,7 +36,8 @@
 `SECRETS': A hash table mapping channels serviced by this courier to the private sigils used to distinguish mailbox owners.
 `ID': A unique identifier for this courier. WARNING: Expect subclasses of `COURIER' to require specific types and values here.
 `NEIGHBORS': Used to store routing information. WARNING: By default, this is a hash mapping courier `ID's in the network to their object instances. Expect subclasses of `COURIER' to install different types and values here.
-`AWAKE?': Couriers which are not processing inbound messages fall asleep."
+`AWAKE?': Couriers which are not processing inbound messages fall asleep.
+`LISTENERS': Mapping from inboxes to lists of processes to WAKE-UP."
   (queue (make-q)) ; messages not yet sorted
   (inboxes (make-hash-table :test 'eq))
   (secrets (make-hash-table :test 'eq))
@@ -45,8 +46,7 @@
   (id (get-courier-index))
   (neighbors (make-hash-table))
   (asleep-since nil)  ; :type (or nil 'fraction)
-  ; TODO GH-28: listeners?
-  )
+  (listeners (make-hash-table :test 'eq)))
 
 (defmethod print-object ((object courier) stream)
   (print-unreadable-object (object stream :type t :identity t)))
@@ -90,6 +90,7 @@
       ;; expunge the mailbox
       (remhash channel (courier-secrets *local-courier*))
       (remhash channel (courier-inboxes *local-courier*))
+      (remhash channel (courier-listeners *local-courier*))
       (values))))
 
 ;;;
@@ -107,6 +108,9 @@
          (a:when-let ((reply-channel (message-reply-channel payload)))
            (send-message reply-channel (make-message-RTS))))
         (t
+         (dolist (sleeper (gethash channel (courier-listeners *local-courier*)))
+           (wake-up sleeper))
+         (setf (gethash channel (courier-listeners *local-courier*)) nil)
          (q-enq payload inbox)))
       t)))
 
@@ -247,9 +251,9 @@ NOTES:
 
 (defmethod wake-up ((courier courier))
   (a:when-let* ((since (courier-asleep-since courier))
-                (next-tick (+ (now)
+                (next-tick (+ since
                               (/ (ceiling (- (now) since)
-                                          *courier-processing-clock-rate*)
-                                 *courier-processing-clock-rate*))))
+                                          (/ (courier-processing-clock-rate courier)))
+                                 (courier-processing-clock-rate courier)))))
     (setf (courier-asleep-since courier) nil)
     (schedule courier next-tick)))

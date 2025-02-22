@@ -57,13 +57,16 @@
 (define-process-upkeep ((process process-coloring) now) (START)
   "Coordinates with the node's `NEIGHBORS' so as to have a distinct `COLOR' value."
   (process-continuation process `(START))
-  (unless (zerop (process-coloring-workloads process))
-    (setf (process-coloring-color process) (random 3))
-    (with-replies (replies)
-                  (send-message-batch #'make-message-color-query
-                                      (process-coloring-neighbors process))
-      (unless (member (process-coloring-color process) replies)
-        (decf (process-coloring-workloads process))))))
+  (cond
+    ((not (zerop (process-coloring-workloads process)))
+     (setf (process-coloring-color process) (random 3))
+     (with-replies (replies)
+                   (send-message-batch #'make-message-color-query
+                                       (process-coloring-neighbors process))
+       (unless (member (process-coloring-color process) replies)
+         (decf (process-coloring-workloads process)))))
+    (t
+     (wake-on-network))))
 
 ;;; node addition
 

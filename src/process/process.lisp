@@ -94,6 +94,10 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
 (defgeneric %message-dispatch (node now)
   (:documentation "Use DEFINE-MESSAGE-DISPATCH to install methods here."))
 
+(defun finish-handler ()
+  "Return from the active aether process handler."
+  (error () "Not available outside of an aether process handler."))
+
 (defmacro define-message-handler (handler-name ((process process-type) (message message-type) now) &body body)
   "Defines a function to be invoked by DEFINE-MESSAGE-DISPATCH."
   (multiple-value-bind (body decls documentation) (a:parse-body body :documentation t)
@@ -104,20 +108,21 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
        ,@(list documentation)
        (check-type ,message ,message-type)
        (check-type ,process ,process-type)
-       (flet ((log-entry (&rest initargs)
-                (when (process-debug? ,process)
-                  (apply #'log-entry
-                         (append initargs
-                                 (list :time ,now
-                                       :source-type ',process-type
-                                       :source (process-public-address ,process)))))))
-         (flet ((send-message (destination payload)
-                  (log-entry :entry-type 'send-message
-                             :destination destination
-                             :payload (copy-structure payload))
-                  (send-message destination payload)))
-           (declare (ignorable #'send-message))
-           ,@body)))))
+       (macrolet ((finish-handler () '(return-from ,handler-name)))
+         (flet ((log-entry (&rest initargs)
+                  (when (process-debug? ,process)
+                    (apply #'log-entry
+                           (append initargs
+                                   (list :time ,now
+                                         :source-type ',process-type
+                                         :source (process-public-address ,process)))))))
+           (flet ((send-message (destination payload)
+                    (log-entry :entry-type 'send-message
+                               :destination destination
+                               :payload (copy-structure payload))
+                    (send-message destination payload)))
+             (declare (ignorable #'send-message))
+             ,@body))))))
 
 (define-message-handler handle-message-RTS
     ((process process) (message message-RTS) now)
@@ -279,6 +284,8 @@ NOTE: LOG-ENTRY is treated separately."
                              (declare (ignorable now process-name))
                              ,@body)))))
 
+(define-condition dpu-exit (condition) ())
+
 (defmacro define-process-upkeep (((process-name process-type) now) (command &rest command-args) &body body)
   "Defines the behavior of a particular PROCESS (of type PROCESS-TYPE) as it enacts a COMMAND.
 
@@ -311,23 +318,26 @@ Locally enables the use of the function PROCESS-DIE and the special form SYNC-RE
                                              :source-type ',process-type
                                              :time ,now))))))
                (initialize-and-return ((,active? t))
-                 (destructuring-bind ,command-args ,argument-list
-                   ,@decls
-                   (macrolet ,macrolet-definitions
-                     ;; install log wrappers around common functions
-                     (flet ,flet-definitions
-                       (declare (ignorable ,@(loop :for (name . rest) :in flet-definitions
-                                                   :collect `#',name)))
-                       ;; announce start of upkeep
-                       (log-entry :entry-type 'command
-                                  :command ',command
-                                  :arguments (copy-seq ,argument-list)
-                                  :next-command (caar (process-command-stack ,process-name)))
-                       ,@body)))))))))))
+                 (handler-case
+                     (destructuring-bind ,command-args ,argument-list
+                       ,@decls
+                       (macrolet ,macrolet-definitions
+                         ;; install log wrappers around common functions
+                         (flet ,flet-definitions
+                           (declare (ignorable ,@(loop :for (name . rest) :in flet-definitions
+                                                       :collect `#',name)))
+                           ;; announce start of upkeep
+                           (log-entry :entry-type 'command
+                                      :command ',command
+                                      :arguments (copy-seq ,argument-list)
+                                      :next-command (caar (process-command-stack ,process-name)))
+                           ,@body)))
+                   (dpu-exit ()  (values)))))))))))
 
 (define-object-handler ((process process) time)
   "Determines the behavior of a generic PROCESS. See DEFINE-MESSAGE-DISPATCH and DEFINE-PROCESS-UPKEEP for details."
   (block nil
+    (assert (null (process-asleep-since process)))
     (with-slots (process-key process-clock-rate process-exhaust-inbox?) process
       (let ((*local-courier* (process-courier process))
             (active? nil))
@@ -351,7 +361,8 @@ Locally enables the use of the function PROCESS-DIE and the special form SYNC-RE
   (a:when-let* ((since (process-asleep-since process))
                 (next-tick (+ since
                               (/ (ceiling (- (now) since)
-                                          (process-clock-rate process))
+                                          (/ (process-clock-rate process)))
                                  (process-clock-rate process)))))
+    (assert (<= (now) next-tick))
     (setf (process-asleep-since process) nil)
     (schedule process next-tick)))

@@ -188,12 +188,6 @@ Provides some helper functions: SCHEDULE, SCHEDULE*, and FINISH-WITH-SCHEDULING.
        (let ((,time-variable (now)))
          (block nil ,@forms)))))
 
-(defun finish-with-scheduling (&optional event-list)
-  "Breaks out of WITH-SCHEDULING. If EVENTS is supplied, returns EVENTS in place of the implicit event list."
-  (declare (ignore event-list))
-  (error "FINISH-WITH-SCHEDULING is not defined outside of WITH-SCHEDULING."))
-
-
 ;; Here lies an implementation of SIMULATION on top of a bare CL-HEAP.  It's
 ;; very slow and memory-expensive in our use case!
 #+#:pedagogy-only

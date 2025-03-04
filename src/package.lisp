@@ -142,6 +142,7 @@
    #:define-message-subordinate         ; MACRO
    
    #:wake-on-network                    ; FUNCTION
+   #:finish-handler                     ; MACRO
    )
   
   ;; rpc.lisp

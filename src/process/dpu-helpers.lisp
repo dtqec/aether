@@ -56,12 +56,15 @@
                           private-mailboxes))
     (push process-name (gethash (address-channel mailbox)
                                 (courier-listeners *local-courier*))))
-  (setf (process-asleep-since process-name) now)
+  (setf (process-asleep-since process-name) (now))
   (values))
 
 ;;;
 ;;; macros
 ;;;
+
+(define-dpu-macro finish-handler ()
+  '(signal 'dpu-exit))
 
 (define-dpu-macro %install-repeat-until
     ((&body repeater-body)

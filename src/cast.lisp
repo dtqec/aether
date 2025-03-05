@@ -64,7 +64,7 @@ WARNING: `RETURN-FROM-CAST' calls `PUSH-BROADCAST-FRAME' as part of the aborting
                     (when ,reply-channel
                       (send-message ,reply-channel (make-message-rpc-done
                                                     :result value)))
-                    (return-from ,handler-name)))
+                    (finish-handler)))
            (declare (ignorable #'push-broadcast-frame #'return-from-cast))
            ;; Push `BROADCAST' before executing the body, in case the body
            ;; pushes an additional script onto the command stack that is
@@ -172,7 +172,7 @@ WARNING: `RETURN-FROM-CAST' calls `PUSH-CONVERGECAST-FRAME' as part of the abort
                     (when ,reply-channel
                       (send-message ,reply-channel (make-message-rpc-done
                                                     :result value)))
-                    (return-from ,handler-name)))
+                    (finish-handler)))
              (declare (ignorable #'return-from-cast))
              (process-continuation ,process `(CONVERGECAST))
              ,@body))))))

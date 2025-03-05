@@ -284,7 +284,8 @@ NOTE: LOG-ENTRY is treated separately."
                              (declare (ignorable now process-name))
                              ,@body)))))
 
-(define-condition dpu-exit (condition) ())
+(define-condition dpu-exit (condition) ()
+  (:documentation "Used to terminate early whatever DEFINE-PROCESS-UPKEEP is currently running."))
 
 (defmacro define-process-upkeep (((process-name process-type) now) (command &rest command-args) &body body)
   "Defines the behavior of a particular PROCESS (of type PROCESS-TYPE) as it enacts a COMMAND.

@@ -36,8 +36,8 @@
 `SECRETS': A hash table mapping channels serviced by this courier to the private sigils used to distinguish mailbox owners.
 `ID': A unique identifier for this courier. WARNING: Expect subclasses of `COURIER' to require specific types and values here.
 `NEIGHBORS': Used to store routing information. WARNING: By default, this is a hash mapping courier `ID's in the network to their object instances. Expect subclasses of `COURIER' to install different types and values here.
-`AWAKE?': Couriers which are not processing inbound messages fall asleep.
-`LISTENERS': Mapping from inboxes to lists of processes to WAKE-UP."
+`ASLEEP-SINCE': Couriers which are not processing inbound messages fall asleep and are temporarily removed from the event heap.  This slot records the last time at which this courier had its event handler processed.
+`LISTENERS': Mapping from inboxes to lists of processes to `WAKE-UP' when a new message arrives."
   (queue (make-q)) ; messages not yet sorted
   (inboxes (make-hash-table :test 'eq))
   (secrets (make-hash-table :test 'eq))
@@ -204,7 +204,8 @@ NOTES:
                             (funcall ,q-deq-fn ,inbox
                                      (lambda (m) (typep m ',clause-head)))))
                 (return-from ,block-name
-                  (values (progn ,@clause-body) t)))))
+                  (values (progn ,@clause-body)
+                          t)))))
       `(block ,block-name
          (check-key-secret ,address)
          (let ((,q-deq-fn (if ,peruse-inbox? #'q-deq-first #'q-deq-when)))
@@ -218,10 +219,8 @@ NOTES:
              ,@(loop :for (clause-head . clause-body) :in clauses
                      :unless (eql 'otherwise clause-head)
                        :collect (process-clause clause-head clause-body))
-             (values
-              (progn
-                ,@(cdr (find 'otherwise clauses :key #'car)))
-              nil)))))))
+             (values (progn ,@(cdr (find 'otherwise clauses :key #'car)))
+                     nil)))))))
 
 ;;;
 ;;; event producers for message passing infrastructure
@@ -249,11 +248,13 @@ NOTES:
                    (+ now time-to-deliver))
          (schedule courier (+ now (/ (courier-processing-clock-rate courier)))))))))
 
-(defmethod wake-up ((courier courier))
-  (a:when-let* ((since (courier-asleep-since courier))
-                (next-tick (+ since
-                              (/ (ceiling (- (now) since)
-                                          (/ (courier-processing-clock-rate courier)))
-                                 (courier-processing-clock-rate courier)))))
-    (setf (courier-asleep-since courier) nil)
-    (schedule courier next-tick)))
+(defgeneric wake-up (courier)
+  (:documentation "If this actor has previously fallen asleep and was removed from the simulation heap, this re-inserts it.  (No action if the actor is already awake.)")
+  (:method ((courier courier))
+    (a:when-let* ((since (courier-asleep-since courier))
+                  (next-tick (+ since
+                                (/ (ceiling (- (now) since)
+                                            (/ (courier-processing-clock-rate courier)))
+                                   (courier-processing-clock-rate courier)))))
+      (setf (courier-asleep-since courier) nil)
+      (schedule courier next-tick))))

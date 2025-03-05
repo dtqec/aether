@@ -5,7 +5,7 @@
 (in-package #:aether)
 
 ;;;
-;;; 
+;;; special variables associated to an active simulation heap
 ;;;
 
 (defvar *scheduling-accumulator*)
@@ -16,13 +16,10 @@
 (setf (documentation '*scheduling-clock* 'symbol)
       "Time at which the WITH-SCHEDULING block is running.")
 
-(declaim (inline now later next))
+(declaim (inline now))  ; Poor man's read-only variable.
 (defun now ()
+  "Returns the current time in the ambient simulation."
   *scheduling-clock*)
-(defun later (delta)
-  (+ delta *scheduling-clock*))
-(defun next (rate &optional (cycles 1))
-  (+ (/ cycles rate) *scheduling-clock*))
 
 ;;;
 ;;; event loop manager, its data types, utilities, *not* the actual loop
@@ -148,7 +145,7 @@ Provides some helper functions: SCHEDULE, SCHEDULE*, and FINISH-WITH-SCHEDULING.
 ;;;
 
 (defmacro with-active-simulation (simulation &body body)
-  "Useful for sending messages 'outside' a simulation actor."
+  "Binds the simulation special variables to SIMULATION.  Useful for sending messages into a simulation from 'outside' of it."
   (a:once-only ((simulation simulation))
     (a:with-gensyms (event events last-value)
       `(multiple-value-bind (,events ,last-value)

@@ -71,18 +71,13 @@
    #:schedule*                          ; FUNCTION
    #:finish-with-scheduling             ; MACRO
    #:with-active-simulation             ; MACRO
+   #:now                                ; FUNCTION
    
    #:canary-until                       ; FUNCTION
    #:canary-timeout                     ; FUNCTION
    #:canary-process                     ; FUNCTION
    #:canary-any                         ; FUNCTION
    #:canary-all                         ; FUNCTION
-   
-   ;; DEPRECATED SYMBOLS
-   #:with-futures                       ; MACRO
-   #:future                             ; FUNCTION
-   #:future*                            ; FUNCTION
-   #:finish-with-futures                ; MACRO
    )
   
   ;; message.lisp

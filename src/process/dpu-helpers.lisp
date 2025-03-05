@@ -52,6 +52,7 @@
                :replies? replies?)))
 
 (define-dpu-flet wake-on-network (&optional private-mailboxes)
+  "Sets this process to fall asleep, waking when its public mailbox or any of PRIVATE-MAILBOXES has a new message delivered."
   (dolist (mailbox (list* (process-public-address process-name)
                           private-mailboxes))
     (push process-name (gethash (address-channel mailbox)
@@ -60,6 +61,7 @@
   (values))
 
 (define-dpu-flet finish-handler ()
+  "Exits the current DEFINE-PROCESS-UPKEEP body."
   (signal 'dpu-exit))
 
 ;;;

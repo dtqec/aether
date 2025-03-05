@@ -154,7 +154,7 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
                     (string= "CALL-NEXT-METHOD" (symbol-name (first clause))))
                `(multiple-value-bind (,results ,trapped?) (call-next-method)
                   (when ,trapped?
-                    (return-from %message-dispatch ,results ,trapped?))))
+                    (return-from %message-dispatch (values ,results ,trapped?)))))
               ((and (listp clause)
                     (member (length clause) '(2 3)))
                (destructuring-bind (message-type receiver . rest) clause
@@ -360,8 +360,8 @@ Locally enables the use of the function PROCESS-DIE and the special form SYNC-RE
 (defmethod wake-up ((process process))
   (a:when-let* ((since (process-asleep-since process))
                 (next-tick (+ since
-                              (/ (ceiling (- (now) since)
-                                          (/ (process-clock-rate process)))
+                              (/ (1+ (floor (- (now) since)
+                                            (/ (process-clock-rate process))))
                                  (process-clock-rate process)))))
     (assert (<= (now) next-tick))
     (setf (process-asleep-since process) nil)

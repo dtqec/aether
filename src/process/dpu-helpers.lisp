@@ -59,12 +59,12 @@
   (setf (process-asleep-since process-name) (now))
   (values))
 
+(define-dpu-flet finish-handler ()
+  (signal 'dpu-exit))
+
 ;;;
 ;;; macros
 ;;;
-
-(define-dpu-macro finish-handler ()
-  '(signal 'dpu-exit))
 
 (define-dpu-macro %install-repeat-until
     ((&body repeater-body)
@@ -78,7 +78,8 @@
               (declare (ignorable ,now))
               ,@finalizer-body))
        (push (list 'REPEAT-UNTIL #',repeater #',finalizer)
-             (process-command-stack ,process-name)))))
+             (process-command-stack ,process-name))
+       (finish-handler))))
 
 ;; TODO: "SYNC"-RECEIVE is a somewhat misleading name.
 ;;       it's more like a busywaiting callback?

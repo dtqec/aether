@@ -52,16 +52,16 @@
 ;;;
 
 (define-message-handler handle-message-flood
-    ((process process-flooding) (message message-flood) now)
+    ((process process-flooding) (message message-flood))
   "Handles a `FLOOD' message. If the `PROCESS's parent is unset, sets it to the `PARENT-ADDRESS' and forwards along the broadcast by pushing the `BROADCAST-FLOOD' command onto the stack. Otherwise, lets the `REPLY-CHANNEL' know that we already have a parent."
   (with-slots (parent-address reply-channel) message
     (let ((parent (process-flooding-parent process)))
       (cond
         (parent
-         #+i(format t "~%~A: ~A already has a parent ~A" now process parent)
+         #+i(format t "~%~A: ~A already has a parent ~A" (now) process parent)
          (send-message reply-channel (make-message-rpc-done :result nil)))
         (t
-         #+i(format t "~%~A: ~A setting parent ~A" now process parent-address)
+         #+i(format t "~%~A: ~A setting parent ~A" (now) process parent-address)
          (setf (process-flooding-parent process) parent-address)
          (process-continuation process `(BROADCAST-FLOOD ,reply-channel)))))))
 
@@ -76,7 +76,7 @@
 ;;; process upkeep
 ;;;
 
-(define-process-upkeep ((process process-flooding) now) (START)
+(define-process-upkeep ((process process-flooding)) (START)
   "If root, start the algorithm. Otherwise loop."
   (cond
     ((process-flooding-root process)
@@ -85,7 +85,7 @@
     (t
      (process-continuation process `(START)))))
 
-(define-process-upkeep ((process process-flooding) now) (BROADCAST-FLOOD reply-channel)
+(define-process-upkeep ((process process-flooding)) (BROADCAST-FLOOD reply-channel)
   "Broadcasts a flood message to all neighbors. For each neighbor, if it replies with result T, add it to our list of children. Finally, if we have a `REPLY-CHANNEL', let it know we're done; otherwise `HALT'."
   (let ((my-address (process-public-address process))
         (neighbors (process-flooding-neighbors process)))

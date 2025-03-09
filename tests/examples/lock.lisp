@@ -29,10 +29,10 @@
 
 ;;; reader definitions
 
-(define-process-upkeep ((process process-reader) now) (START)
+(define-process-upkeep ((process process-reader)) (START)
   (process-continuation process `(START)))
 
-(define-rpc-handler handle-message-write ((process process-reader) (message message-write) now)
+(define-rpc-handler handle-message-write ((process process-reader) (message message-write))
   (push (message-write-payload message)  (process-reader-receive-list process)))
 
 (defmethod process-lockable-targets ((process process-reader))
@@ -40,7 +40,7 @@
 
 ;;; writer definitions
 
-(define-process-upkeep ((process process-writer) now) (START)
+(define-process-upkeep ((process process-writer)) (START)
   (unless (endp (process-writer-transmit-list process))
     (process-continuation process
                           `(BROADCAST-LOCK (,(process-writer-target process)))
@@ -48,14 +48,14 @@
                           `(BROADCAST-UNLOCK)
                           `(START))))
 
-(define-process-upkeep ((process process-writer) now) (TRANSMIT)
+(define-process-upkeep ((process process-writer)) (TRANSMIT)
   (unless (or (process-lockable-aborting? process)
               (endp (process-writer-transmit-list process)))
     (send-message (process-writer-target process)
                   (make-message-write :payload (pop (process-writer-transmit-list process))))
     (process-continuation process `(TRANSMIT))))
 
-(define-process-upkeep ((process process-writer) now) (START-NO-LOCKS)
+(define-process-upkeep ((process process-writer)) (START-NO-LOCKS)
   "This is a _bad_ version of START, to see what happens without locking."
   (unless (endp (process-writer-transmit-list process))
     (process-continuation process

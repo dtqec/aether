@@ -14,9 +14,9 @@
   "Demo message type. Supposed to be delayed by an established lock on a process.")
 
 (define-message-handler handle-message-test-lock
-    ((process process-lockable-test) (message message-test-lock) now)
+    ((process process-lockable-test) (message message-test-lock))
   "Records the receipt of a test lock message."
-  (push `(,(process-tree-id process) ,now) *locking-events*))
+  (push `(,(process-tree-id process) ,(now)) *locking-events*))
 
 (defmethod process-lockable-targets ((process process-lockable-test))
   "See `PROCESS-TREE-CHILDREN' for more information."

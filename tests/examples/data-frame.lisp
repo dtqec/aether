@@ -8,21 +8,21 @@
 
 ;;; basic services
 
-(define-process-upkeep ((process arithmetic-server) now) (START)
+(define-process-upkeep ((process arithmetic-server)) (START)
   "This makes the server sit in an infinite \"listening\" loop."
   (process-continuation process `(START)))
 
-(define-process-upkeep ((process arithmetic-server) now) (PUSH n)
+(define-process-upkeep ((process arithmetic-server)) (PUSH n)
   "Puts an item at the top of the data stack."
   (push n (process-data-stack process)))
 
-(define-process-upkeep ((process arithmetic-server) now) (MULTIPLY)
+(define-process-upkeep ((process arithmetic-server)) (MULTIPLY)
   "Multiplies the top two elements on the data stack."
   (let ((left (pop (process-data-stack process)))
         (right (pop (process-data-stack process))))
     (push (* left right) (process-data-stack process))))
 
-(define-process-upkeep ((process arithmetic-server) now) (EMIT address)
+(define-process-upkeep ((process arithmetic-server)) (EMIT address)
   "Sends the top element on the data stack to the indicated address."
   (let ((result (pop (process-data-stack process))))
     (send-message address (make-message-rpc-done :result result))))
@@ -34,13 +34,13 @@
   (n   nil :type (integer 0)))
 
 (define-message-handler handle-message-factorial
-    ((process arithmetic-server) (message message-factorial) now)
+    ((process arithmetic-server) (message message-factorial))
   "Sets up the computation of n! to service an inbound request."
   (process-continuation process
                         `(FACTORIAL-STEP ,(message-factorial-n message))
                         `(EMIT ,(message-reply-channel message))))
 
-(define-process-upkeep ((process arithmetic-server) now)
+(define-process-upkeep ((process arithmetic-server))
     (FACTORIAL-STEP n)
   "The workhorse for the non-tail-call version of factorial.
 
@@ -60,14 +60,14 @@ If appropriate, it first calls FACTORIAL-STEP recursively, which sets up a retur
   "Also a factorial query, handled slightly differently by the server.")
 
 (define-message-handler handle-message-factorial-tco
-    ((process arithmetic-server) (message message-factorial-tco) now)
+    ((process arithmetic-server) (message message-factorial-tco))
   "Sets up the computation of n! to service an inbound request."
   (process-continuation process
                         `(PUSH 1)
                         `(FACTORIAL-STEP-TCO ,(message-factorial-n message))
                         `(EMIT ,(message-reply-channel message))))
 
-(define-process-upkeep ((process arithmetic-server) now)
+(define-process-upkeep ((process arithmetic-server))
     (FACTORIAL-STEP-TCO n)
   "The workhorse for the tail-call version of factorial.
 

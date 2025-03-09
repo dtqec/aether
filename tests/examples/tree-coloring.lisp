@@ -17,7 +17,7 @@
   (color 0 :type bit))
 
 (define-broadcast-handler handle-broadcast-coloring
-    ((process process-tree-coloring) (message broadcast-coloring) now)
+    ((process process-tree-coloring) (message broadcast-coloring))
   "Sets this process's color according to the message, and inverts the message's color."
   (setf (process-tree-coloring-color process) (broadcast-coloring-color message))
   (setf (broadcast-coloring-color message) (- 1 (broadcast-coloring-color message)))

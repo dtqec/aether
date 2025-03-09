@@ -7,12 +7,12 @@
 
 ;; TODO: this traps RETURN-FROM, but not FINISH-WITH-SCHEDULING.
 (defmacro define-rpc-handler (handler-name
-                              ((process process-type) (message message-type) now)
+                              ((process process-type) (message message-type))
                               &body body)
   "Interrupt-based RPC handlers are expected to emit a reply to the caller.  This macro augments DEFINE-MESSAGE-HANDLER to reply to the caller with the last evaluated form."
   (a:with-gensyms (return-value reply-channel)
     `(define-message-handler ,handler-name
-         ((,process ,process-type) (,message ,message-type) ,now)
+         ((,process ,process-type) (,message ,message-type))
        (let (,return-value)
          (setf ,return-value (block ,handler-name ,@body))
          (a:when-let ((,reply-channel (message-reply-channel ,message)))

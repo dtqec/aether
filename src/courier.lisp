@@ -226,17 +226,17 @@ NOTES:
 ;;; event producers for message passing infrastructure
 ;;;
 
-(define-object-handler ((courier courier) now)
+(define-object-handler ((courier courier))
   "Processes messages in the COURIER's I/O queue: messages bound for other COURIERs get forwarded, and messages bound for this COURIER get sorted into local mailboxes."
   (when (q-empty (courier-queue courier))
-    (setf (courier-asleep-since courier) now)
+    (setf (courier-asleep-since courier) (now))
     (return))
   (let ((message (q-deq (courier-queue courier)))
         (*local-courier* courier))
     (cond
       ;; are we this message's destination?
       ((stash-local-message message)
-       (schedule courier now))
+       (schedule courier (now)))
       ;; otherwise, route it
       (t
        (multiple-value-bind (intermediate-destination time-to-deliver)
@@ -245,8 +245,8 @@ NOTES:
                                    (courier-default-routing-time-step courier)))
          (schedule (ignorant-lambda
                      (deliver-message intermediate-destination message))
-                   (+ now time-to-deliver))
-         (schedule courier (+ now (/ (courier-processing-clock-rate courier)))))))))
+                   (+ (now) time-to-deliver))
+         (schedule courier (+ (now) (/ (courier-processing-clock-rate courier)))))))))
 
 (defgeneric wake-up (courier)
   (:documentation "If this actor has previously fallen asleep and was removed from the simulation heap, this re-inserts it.  (No action if the actor is already awake.)")

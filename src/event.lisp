@@ -30,7 +30,7 @@
   (callback nil :read-only t)
   (time       0 :read-only t :type (rational 0)))
 
-(defgeneric handle-object (object now)
+(defgeneric handle-object (object)
   (:documentation "Describes the generic behavior of OBJECTs of a particular type, as occuring at a particular TIME."))
 
 (defstruct (simulation (:constructor %make-simulation))
@@ -116,29 +116,29 @@ Provides some helper functions: SCHEDULE, SCHEDULE*, and FINISH-WITH-SCHEDULING.
 
 (defun canary-until (until)
   "Pause a simulation after UNTIL passes."
-  (lambda (now) (< until now)))
+  (lambda () (< until (now))))
 
 (defun canary-timeout (timeout)
   "Throw an error when TIMEOUT arrives."
-  (lambda (now)
-    (when (<= timeout now)
+  (lambda ()
+    (when (<= timeout (now))
       (error ""))))
 
 (defun canary-process (process)
   "Pause a simulation when PROCESS halts."
-  (lambda (now) (endp (process-command-stack process))))
+  (lambda () (endp (process-command-stack process))))
 
 (defun canary-any (&rest canaries)
   "Announce a trigger when any one of the CANARIES is triggered."
-  (lambda (now)
+  (lambda ()
     (loop :for canary :in canaries
-          :thereis (funcall canary now))))
+            :thereis (funcall canary))))
 
 (defun canary-all (&rest canaries)
   "Announce a trigger when all of the CANARIES are simultaneously triggered."
-  (lambda (now)
+  (lambda ()
     (loop :for canary :in canaries
-          :always (funcall canary now))))
+          :always (funcall canary))))
 
 ;;;
 ;;; event loop and basic handlers
@@ -163,27 +163,27 @@ Provides some helper functions: SCHEDULE, SCHEDULE*, and FINISH-WITH-SCHEDULING.
     (unless event
       (return-from simulation-run nil))
     ;; more events but the canary is dead? return SIMULATION to say we're done
-    (when (and canary (funcall canary (event-time event)))
-      (return-from simulation-run simulation))
+    (let ((*scheduling-clock* (event-time event)))
+      (when (and canary (funcall canary))
+        (return-from simulation-run simulation)))
     ;; otherwise: deal with the event
     (simulation-dequeue simulation)
     (with-scheduling (event-time event)
       (typecase (event-callback event)
-        (function  (funcall (event-callback event) (event-time event)))
-        (otherwise (handle-object (event-callback event) (event-time event))))
+        (function  (funcall (event-callback event)))
+        (otherwise (handle-object (event-callback event))))
       (dolist (new-event *scheduling-accumulator*)
         (check-type new-event event)
         (simulation-add-event simulation new-event)))
     (simulation-run simulation :canary canary)))
 
-(defmacro define-object-handler (((object-variable object-type) time-variable) &body body)
+(defmacro define-object-handler (((object-variable object-type)) &body body)
   "Defines a default event handler for OBJECT-TYPE."
   (multiple-value-bind (forms decls docstring) (alexandria:parse-body body)
-    `(defmethod handle-object ((,object-variable ,object-type) ,time-variable)
+    `(defmethod handle-object ((,object-variable ,object-type))
        ,@(when docstring (list docstring))
        ,@(when decls decls)
-       (let ((,time-variable (now)))
-         (block nil ,@forms)))))
+       (block nil ,@forms))))
 
 ;; Here lies an implementation of SIMULATION on top of a bare CL-HEAP.  It's
 ;; very slow and memory-expensive in our use case!

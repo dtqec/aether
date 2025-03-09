@@ -24,7 +24,7 @@
   (initialize-and-return ((result (send-message destination payload)))
     (when (process-debug? process-name)
       (setf (process-debug? process-name)
-            (list ':time now
+            (list ':time (now)
                   ':origin (type-of process-name)
                   ':destination-count 1
                   ':message (type-of payload))))
@@ -42,7 +42,7 @@
                                                :replies? replies?)))
     (when (process-debug? process-name)
       (setf (process-debug? process-name)
-            (list ':time now
+            (list ':time (now)
                   ':origin (type-of process-name)
                   ':destination-count (length destinations)
                   ':message (type-of (funcall payload-constructor)))))
@@ -73,11 +73,9 @@
      (&body finalizer-body))
   "Irreversibly transfers control from the current command by replacing it with a `:REPEAT-UNTIL' command with the indicated `REPEATER' and `FINALIZER'."
   (a:with-gensyms (repeater finalizer)
-    `(flet ((,repeater (,now)
-              (declare (ignorable ,now))
+    `(flet ((,repeater ()
               ,@repeater-body)
-            (,finalizer (,now)
-              (declare (ignorable ,now))
+            (,finalizer ()
               ,@finalizer-body))
        (push (list 'REPEAT-UNTIL #',repeater #',finalizer)
              (process-command-stack ,process-name))
@@ -94,7 +92,7 @@ NOTE: `MESSAGE-RTS' replies must be explicitly handled.  Otherwise, the default 
   (a:with-gensyms (retval sr-done? record)
     `(%install-repeat-until
          ((log-entry :entry-type 'command
-                     :time ,now
+                     :time (now)
                      :command 'sync-receive
                      :next-command (caar (process-command-stack ,process-name))
                      :sync-channel ,sync-channel)
@@ -103,7 +101,7 @@ NOTE: `MESSAGE-RTS' replies must be explicitly handled.  Otherwise, the default 
                  ,@(loop :for (clause-head . clause-body) :in sync-clauses
                          :collect `(,clause-head
                                     (a:when-let ((,record (process-debug? ,process-name)))
-                                      (setf ,record (list* ':delta (- ,now (getf ,record ':time))
+                                      (setf ,record (list* ':delta (- (now) (getf ,record ':time))
                                                            ,record))
                                       (remf ,record ':time)
                                       (apply #'tracer-store ,record))
@@ -172,7 +170,7 @@ Typical use looks like:
             (endp ,remainder))
            (;; finalizer
             (a:when-let ((,record (process-debug? ,process-name)))
-              (setf ,record (list* ':delta (- ,now (getf ,record ':time)) ,record))
+              (setf ,record (list* ':delta (- (now) (getf ,record ':time)) ,record))
               (remf ,record ':time)
               (apply #'tracer-store ,record))
             ,@body)))))
@@ -181,11 +179,11 @@ Typical use looks like:
 ;;; commands
 ;;;
 
-(define-process-upkeep ((process T) now) (REPEAT-UNTIL callback finalize)
-  "Repeatedly calls CALLBACK: (TIME) --> DONE? until DONE? is non-NIL.  Then, calls FINALIZE: (TIME) --> (EVENTS) once."
-  (let ((done? (funcall callback now)))
+(define-process-upkeep ((process T)) (REPEAT-UNTIL callback finalize)
+  "Repeatedly calls CALLBACK: () --> DONE? until DONE? is non-NIL.  Then, calls FINALIZE: () --> () once."
+  (let ((done? (funcall callback)))
     (cond
       ((and done? finalize)
-       (funcall finalize now))
+       (funcall finalize))
       (t
        (push `(REPEAT-UNTIL ,callback ,finalize) (process-command-stack process))))))

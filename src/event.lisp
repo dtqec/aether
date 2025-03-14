@@ -152,6 +152,7 @@ Provides some helper functions: SCHEDULE, SCHEDULE*, and FINISH-WITH-SCHEDULING.
            (with-scheduling (simulation-horizon ,simulation)
              ,@body)
          (dolist (,event ,events ,last-value)
+           (check-type ,event event)
            (simulation-add-event ,simulation ,event))))))
 
 (defun simulation-run (simulation &key canary)

@@ -145,7 +145,7 @@
 
 ;; section 3 of the paper pseudocode: response to Connect
 (define-message-handler handle-msg-connect
-    ((node fragment-node) (message msg-connect) now)
+    ((node fragment-node) (message msg-connect))
   "If we get a Connect message from a lower-level fragment, then mark that edge as a Branch and send an Initate message to absorb that fragment. Else, if the sender is at the end of a Basic edge, then wait (via a self-send). Otherwise, we've received a Connect message from a fragment of equal level, and thus we would like to merge with it. We do so by sending it an Initiate message with a higher level, and with the edge weight.
 
 NOTE: the following line is implemented using a guard in `DEFINE-MESSAGE-DISPATCH'
@@ -202,7 +202,7 @@ if SN = sleeping then execute procedure wakeup"
 
 ;; section 4 of the paper pseudocode: response to Initiate
 (define-message-handler handle-msg-initiate
-    ((node fragment-node) (message msg-initiate) now)
+    ((node fragment-node) (message msg-initiate))
   "An Initiate is a broadcast that is triggered in response to handling a Connect. In step 1, we update our internal state. In step 2, we continue the broadcast if we have any branches. Finally, in step 3, we push a `TEST' onto the stack if we are in the Find state."
   (let ((address (process-public-address node)))
     (with-slots (adjacent-edges find-count) node
@@ -243,7 +243,7 @@ if SN = sleeping then execute procedure wakeup"
 
 ;; section 6 of the paper pseudocode: response to Test
 (define-message-handler handle-msg-test
-    ((node fragment-node) (message msg-test) now)
+    ((node fragment-node) (message msg-test))
   "Response to a Test message. If our level is <= to that of the message, then we wait (by self-sending the message). Else, if we are part of a different fragment, then we send an Accept.
 
 Otherwise, we should reject the edge that this message came from. We only mark the edge as Rejected if it is Basic -- if it's not Basic, then this is essentially a stale Test. However, even in the case that it is stale, we likely want to send back a Reject message to allow the sender to resume progress. Finally, we push a `TEST' onto the stack.
@@ -296,7 +296,7 @@ if SN = sleeping then execute procedure wakeup"
 
 ;; section 7 of the paper pseudocode: response to Accept
 (define-message-handler handle-msg-accept
-    ((node fragment-node) (message msg-accept) now)
+    ((node fragment-node) (message msg-accept))
   "If accepted edge weight is less than `BEST-WEIGHT', update `BEST-WEIGHT' and `BEST-EDGE'. Either way, push `REPORT' onto the stack."
   ;; extract best-edge, best-wt, test-edge from node
   (with-slots (adjacent-edges best-edge best-weight test-edge) node
@@ -315,7 +315,7 @@ if SN = sleeping then execute procedure wakeup"
 
 ;; section 8 of the paper pseudocode: response to Reject
 (define-message-handler handle-msg-reject
-    ((node fragment-node) (message msg-reject) now)
+    ((node fragment-node) (message msg-reject))
   "Mark edge as Rejected (if it is Basic), and push `TEST' onto the stack."
   (with-slots (adjacent-edges) node
     ;; extract j from message
@@ -329,7 +329,7 @@ if SN = sleeping then execute procedure wakeup"
 
 ;; section 10 of the paper pseudocode: response to Report
 (define-message-handler handle-msg-report
-    ((node fragment-node) (message msg-report) now)
+    ((node fragment-node) (message msg-report))
   "If we get a Report from someone that's not our `IN-BRANCH', then we decrement `FIND-COUNT', potentially update our best edge & weight, and then proceed to `REPORT'. Else, if we're in the Find state, wait (via a self-send). Else, if the Report weight is lower than `BEST-WEIGHT', we should `CHANGE-ROOT'. Finally, if the Report weight and `BEST-WEIGHT' are both inifinity, then we're part of the core and have discovered the full MST, so it's time to stop."
   ;; extract best-edge, best-wt, find-count, in-branch, SN from node
   (with-slots (best-edge best-weight find-count in-branch) node
@@ -375,7 +375,7 @@ if SN = sleeping then execute procedure wakeup"
 
 ;; section 12 of the paper pseudocode: response to Change-root
 (define-message-handler handle-msg-change-root
-    ((node fragment-node) (message msg-change-root) now)
+    ((node fragment-node) (message msg-change-root))
   "Push a `CHANGE-ROOT' command onto the stack."
   (process-continuation node `(CHANGE-ROOT)))
 
@@ -401,13 +401,13 @@ if SN = sleeping then execute procedure wakeup"
 ;;; process upkeep
 ;;;
 
-(define-process-upkeep ((node fragment-node) now) (HALT)
+(define-process-upkeep ((node fragment-node)) (HALT)
   "Empty the command stack and kill the process."
   (setf (process-command-stack node) '())
   (process-die))
 
 ;; section 1 of the paper pseudocode: response to awakening
-(define-process-upkeep ((node fragment-node) now) (START)
+(define-process-upkeep ((node fragment-node)) (START)
   "If sleeping, wake up. Otherwise loop forever."
   (process-continuation node `(START))
   ;; if asleep, push the wakeup procedure onto the stack
@@ -415,7 +415,7 @@ if SN = sleeping then execute procedure wakeup"
     (process-continuation node `(WAKEUP))))
 
 ;; section 2 of the paper pseudocode: wakeup procedure
-(define-process-upkeep ((node fragment-node) now) (WAKEUP)
+(define-process-upkeep ((node fragment-node)) (WAKEUP)
   "Wake up, by finding the minimum-weight adjacent edge, initializing local state, and sending our initial Connect message."
   (let ((address (process-public-address node)))
     (with-slots (adjacent-edges find-count fragment-level) node
@@ -442,7 +442,7 @@ if SN = sleeping then execute procedure wakeup"
 ;; section 5 of the paper pseudocode: test procedure
 ;; NOTE: this is the only procedure that calls another procedure
 ;;       watch out for this as it's unclear if that matters
-(define-process-upkeep ((node fragment-node) now) (TEST)
+(define-process-upkeep ((node fragment-node)) (TEST)
   "If we have an adjacent edge in the `:BASIC' state, then send a Test message along that edge. Otherwise, push a `REPORT' command onto the stack."
   (with-slots (adjacent-edges test-edge) node
     ;; find minimum-weight adjacent edge in Basic state, if exists
@@ -471,7 +471,7 @@ if SN = sleeping then execute procedure wakeup"
          (process-continuation node `(REPORT)))))))
 
 ;; section 9 of the paper pseudocode: report procedure
-(define-process-upkeep ((node fragment-node) now) (REPORT)
+(define-process-upkeep ((node fragment-node)) (REPORT)
   "When `FIND-COUNT' is zero and `TEST-EDGE' is NIL, set state to `:FOUND' and report our `BEST-WEIGHT' to `IN-BRANCH'."
   (with-slots (best-weight find-count in-branch test-edge) node
     ;; if find-count = 0 and test-edge = nil
@@ -488,7 +488,7 @@ if SN = sleeping then execute procedure wakeup"
 
 ;; section 11 of the paper pseudocode: change-core procedure
 ;; TODO: probably rename this and the accompanying message to change-core
-(define-process-upkeep ((node fragment-node) now) (CHANGE-ROOT)
+(define-process-upkeep ((node fragment-node)) (CHANGE-ROOT)
   "If the `BEST-EDGE' is a `:BRANCH', send a `MSG-CHANGE-ROOT' along it. Otherwise, send a `MSG-CONNECT' along it with our current `FRAGMENT-LEVEL'."
   (let ((address (process-public-address node)))
     ;; extract best-edge, LN from node

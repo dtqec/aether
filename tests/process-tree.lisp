@@ -17,7 +17,7 @@
     :accessor process-tree-children))
   (:documentation "A `PROCESS' that is part of a tree of processes. Has an `ID' and a list of `CHILDREN'."))
 
-(define-process-upkeep ((process process-tree) now)
+(define-process-upkeep ((process process-tree))
     (START)
   "This process sits in an infinite loop."
   (process-continuation process `(START)))

@@ -22,14 +22,14 @@
   "Used to determined the number of leaves in a tree of processes.")
 
 (define-convergecast-handler handle-convergecast-tree-size
-    ((process process-tree) (message convergecast-tree-size) now)
+    ((process process-tree) (message convergecast-tree-size))
   "Computes the size of the tree of processes."
   (push-convergecast-frame :targets (process-tree-children process)
                            :func #'aether::reduce+
                            :input 1))
 
 (define-convergecast-handler handle-convergecast-tree-depth
-    ((process process-tree) (message convergecast-tree-depth) now)
+    ((process process-tree) (message convergecast-tree-depth))
   "Computes the depth of a tree of processes by incrementing a carry."
   (incf (convergecast-tree-depth-depth message))
   (push-convergecast-frame :targets (process-tree-children process)
@@ -37,7 +37,7 @@
                            :input (convergecast-tree-depth-depth message)))
 
 (define-convergecast-handler handle-convergecast-tree-depth-no-carry
-    ((process process-tree) (message convergecast-tree-depth-no-carry) now)
+    ((process process-tree) (message convergecast-tree-depth-no-carry))
   "Computes the depth of a tree of processes without using a carry. Demonstrates the power of `FUNCALL' over `REDUCE'."
   (flet ((1+reduce-max (input replies)
            (declare (ignore input))
@@ -47,7 +47,7 @@
                              :input 1)))
 
 (define-convergecast-handler handle-convergecast-tree-leaves
-    ((process process-tree) (message convergecast-tree-leaves) now)
+    ((process process-tree) (message convergecast-tree-leaves))
   "Computes the number of leaves of a tree of processes."
   (cond
     ((process-tree-children process)

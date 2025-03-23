@@ -50,21 +50,23 @@
   "An RPC request for a foreign node's current color value.")
 
 (define-rpc-handler handle-message-color-query
-    ((process process-coloring) (message message-color-query) now)
+    ((process process-coloring) (message message-color-query))
   "Responds with this node's current color value."
   (process-coloring-color process))
 
-(define-process-upkeep ((process process-coloring) now) (START)
+(define-process-upkeep ((process process-coloring)) (START)
   "Coordinates with the node's `NEIGHBORS' so as to have a distinct `COLOR' value."
   (process-continuation process `(START))
-  (when (zerop (process-coloring-workloads process))
-    (finish-with-scheduling))
-  (setf (process-coloring-color process) (random 3))
-  (with-replies (replies)
-                (send-message-batch #'make-message-color-query
-                                    (process-coloring-neighbors process))
-    (unless (member (process-coloring-color process) replies)
-      (decf (process-coloring-workloads process)))))
+  (cond
+    ((not (zerop (process-coloring-workloads process)))
+     (setf (process-coloring-color process) (random 3))
+     (with-replies (replies)
+                   (send-message-batch #'make-message-color-query
+                                       (process-coloring-neighbors process))
+       (unless (member (process-coloring-color process) replies)
+         (decf (process-coloring-workloads process)))))
+    (t
+     (wake-on-network))))
 
 ;;; node addition
 
@@ -78,7 +80,7 @@
   (new nil :type (or null address)))
 
 (define-rpc-handler handle-message-swap-neighbor
-    ((process process-coloring) (message message-swap-neighbor) now)
+    ((process process-coloring) (message message-swap-neighbor))
   "Handles a SWAP-NEIGHBOR message."
   (let ((new (message-swap-neighbor-new message))
         (old (message-swap-neighbor-old message)))
@@ -95,7 +97,7 @@
     (incf (process-coloring-workloads process))))
 
 (define-rpc-handler handle-message-inject
-    ((process process-coloring) (message message-inject) now)
+    ((process process-coloring) (message message-inject))
   "Handles an INJECT message."
   (let ((neighbors (message-inject-neighbors message))
         (address (process-public-address process)))
@@ -115,7 +117,7 @@
   "Instruct a node to remove itself from the line.")
 
 (define-rpc-handler handle-message-kill
-    ((process process-coloring) (message message-kill) now)
+    ((process process-coloring) (message message-kill))
   "Given a node, tell its neighbors to sew over it, restart their coloring processes, and stop this node."
   (let ((neighbors (process-coloring-neighbors process))
         (address (process-public-address process)))
@@ -301,9 +303,10 @@
             (*local-courier* (aref couriers 0))
             (middle-pos (floor node-count 2)))
         ;; delete a couple of nodes
-        (send-message-batch #'make-message-kill (mapcar #'process-public-address
-                                                        (list (aref nodes middle-pos)
-                                                              (aref nodes 0))))
+        (with-active-simulation simulation
+          (send-message-batch #'make-message-kill (mapcar #'process-public-address
+                                                          (list (aref nodes middle-pos)
+                                                                (aref nodes 0)))))
         (setf nodes (concatenate 'vector
                                  (subseq nodes 1 middle-pos)
                                  (subseq nodes (1+ middle-pos))))
@@ -332,9 +335,10 @@
           (break)
           (return-from test-unstable-node-deletion (test-unstable-node-deletion)))
         ;; delete a couple of nodes
-        (send-message-batch #'make-message-kill (mapcar #'process-public-address
-                                                        (list (aref nodes middle-pos)
-                                                              (aref nodes 0))))
+        (with-active-simulation simulation
+          (send-message-batch #'make-message-kill (mapcar #'process-public-address
+                                                          (list (aref nodes middle-pos)
+                                                                (aref nodes 0)))))
         (setf nodes (concatenate 'vector
                                  (subseq nodes 1 middle-pos)
                                  (subseq nodes (1+ middle-pos))))

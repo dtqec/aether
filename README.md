@@ -35,19 +35,21 @@ Here is an example description of a simple processor which responds to external 
 ;;; processor description / computational primitives
 
 ;; all PROCESS instances begin with the command START
-(define-process-upkeep ((process arithmetic-server) now) (START)
+(define-process-upkeep ((process arithmetic-server)) (START)
   "Make the processor sit in an infinite \"listening\" loop."
-  (process-continuation process `(START)))
+  (process-continuation process `(START))
+  ; optional: (wake-on-network)
+  )
 
-(define-process-upkeep ((process arithmetic-server) now) (PUSH n)
+(define-process-upkeep ((process arithmetic-server)) (PUSH n)
   (push n (process-data-stack process)))
 
-(define-process-upkeep ((process arithmetic-server) now) (MULTIPLY)
+(define-process-upkeep ((process arithmetic-server)) (MULTIPLY)
   (let ((left (pop (process-data-stack process)))
         (right (pop (process-data-stack process))))
     (push (* left right) (process-data-stack process))))
 
-(define-process-upkeep ((process arithmetic-server) now) (EMIT address)
+(define-process-upkeep ((process arithmetic-server)) (EMIT address)
   (let* ((result (pop (process-data-stack process)))
          (message (make-message-rpc-done :result result)))
     (send-message address message)))
@@ -58,12 +60,12 @@ Here is an example description of a simple processor which responds to external 
   (n   nil :type (integer 0)))
 
 (define-message-handler handle-message-factorial
-    ((process arithmetic-server) (message message-factorial) now)
+    ((process arithmetic-server) (message message-factorial))
   (process-continuation process
                         `(FACTORIAL ,(message-factorial-n message))
                         `(EMIT ,(message-reply-channel message))))
 
-(define-process-upkeep ((process arithmetic-server) now)
+(define-process-upkeep ((process arithmetic-server))
     (FACTORIAL n)
   (cond
     ((zerop n)
@@ -89,9 +91,10 @@ Here is an example description of a simple processor which responds to external 
   (simulation-add-event simulation (make-event :callback server))
   (simulation-add-event simulation (make-event :callback *local-courier*))
   ;; send the factorial request
-  (send-message (process-public-address server)
-                (make-message-factorial :reply-channel reply-channel
-                                        :n 15))
+  (with-active-simulation simulation
+    (send-message (process-public-address server)
+                  (make-message-factorial :reply-channel reply-channel
+                                          :n 15)))
   ;; wait a while for it to complete
   (simulation-run simulation :canary (canary-until 60))
   ;; unpack the reply

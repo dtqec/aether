@@ -24,7 +24,7 @@
   (error "PUSH-BROADCAST-FRAME only available in DEFINE-BROADCAST-HANDLER."))
 
 (defmacro define-broadcast-handler (handler-name
-                                    ((process process-type) (message message-type) now)
+                                    ((process process-type) (message message-type))
                                     &body body)
   "This macro augments `DEFINE-MESSAGE-HANDLER', by pushing a `BROADCAST' command onto the `PROCESS's command stack. This command takes no arguments, but expects a `BROADCAST-FRAME' to be on the data stack when it is called. Thus, either the handler must prepare the data frame, or it must be prepared by whatever script is pushed onto the command stack by the handler. Additionally, inside the context of `DEFINE-BROADCAST-HANDLER' we have access to a pair of helper functions:
 
@@ -34,26 +34,25 @@
 WARNING: `RETURN-FROM-CAST' calls `PUSH-BROADCAST-FRAME' as part of the aborting process. If a frame has already been pushed onto the data stack, we instead alter that frame rather than pushing an additional one (which could have strange consequences). Additionally, it is important to note that `RETURN-FROM-CAST' uses `FINISH-WITH-SCHEDULING' in order to return from the handler early."
   (a:with-gensyms (broadcast-frame reply-channel)
     `(define-message-handler ,handler-name
-         ((,process ,process-type) (,message ,message-type) ,now)
+         ((,process ,process-type) (,message ,message-type))
        (let ((,broadcast-frame nil)
              (,message (copy-message message))
              (,reply-channel (message-reply-channel ,message)))
-         (flet ((push-broadcast-frame (&key aborting?
-                                            handle-rts?
-                                            (message ,message)
-                                            targets)
-                  ;; We would like to prevent the user from pushing more than
-                  ;; one `BROADCAST-FRAME' onto the `PROCESS-DATA-STACK'.
-                  (assert (null ,broadcast-frame) ()
-                          "Cannot push two BROADCAST-FRAMEs from one handler.")
-                  (setf ,broadcast-frame
-                        (make-broadcast-frame :aborting? aborting?
-                                              :handle-rts? handle-rts?
-                                              :message message
-                                              :targets targets))
-                  (push ,broadcast-frame (process-data-stack ,process))))
-           (declare (ignorable #'push-broadcast-frame))
-           (flet ((return-from-cast (&optional value (reason 'none-provided))
+         (labels ((push-broadcast-frame (&key aborting?
+                                              handle-rts?
+                                              (message ,message)
+                                              targets)
+                    ;; We would like to prevent the user from pushing more than
+                    ;; one `BROADCAST-FRAME' onto the `PROCESS-DATA-STACK'.
+                    (assert (null ,broadcast-frame) ()
+                            "Cannot push two BROADCAST-FRAMEs from one handler.")
+                    (setf ,broadcast-frame
+                          (make-broadcast-frame :aborting? aborting?
+                                                :handle-rts? handle-rts?
+                                                :message message
+                                                :targets targets))
+                    (push ,broadcast-frame (process-data-stack ,process)))
+                  (return-from-cast (&optional value (reason 'none-provided))
                     (log-entry :entry-type 'terminating-broadcast
                                :reason reason)
                     ;; Push a frame with `:ABORTING?' set to T, so that the
@@ -65,15 +64,15 @@ WARNING: `RETURN-FROM-CAST' calls `PUSH-BROADCAST-FRAME' as part of the aborting
                     (when ,reply-channel
                       (send-message ,reply-channel (make-message-rpc-done
                                                     :result value)))
-                    (finish-with-scheduling)))
-             (declare (ignorable #'return-from-cast))
-             ;; Push `BROADCAST' before executing the body, in case the body
-             ;; pushes an additional script onto the command stack that is
-             ;; meant to be executed before continuing the broadcast.
-             (process-continuation ,process `(BROADCAST))
-             ,@body))))))
+                    (finish-handler)))
+           (declare (ignorable #'push-broadcast-frame #'return-from-cast))
+           ;; Push `BROADCAST' before executing the body, in case the body
+           ;; pushes an additional script onto the command stack that is
+           ;; meant to be executed before continuing the broadcast.
+           (process-continuation ,process `(BROADCAST))
+           ,@body)))))
 
-(define-process-upkeep ((process process) now)
+(define-process-upkeep ((process process))
     (BROADCAST)
   "Pops a frame off of the `PROCESS's data stack, and after checking that it is in fact a `BROADCAST-FRAME', unpacks `ABORTING?', `HANDLE-RTS?', `MESSAGE' and `TARGETS' from the frame. Unless `ABORTING?' is T, forwards along a copy of `MESSAGE' to all `TARGETS' and optionally awaits a reply and sends back an acknowledgement back to the `MESSAGE's `REPLY-CHANNEL' if the reply channel is not null. While awaiting replies, we handle RTSes gracefully if `HANDLE-RTS?' is T."
   (let ((frame (pop (process-data-stack process))))
@@ -128,8 +127,7 @@ Where `REPLIES' is assumed to be a `LIST'. Additionally, when `HANDLE-RTS?' is t
 
 (defmacro define-convergecast-handler (handler-name
                                        ((process process-type)
-                                        (message message-type)
-                                        now)
+                                        (message message-type))
                                        &body body)
   "This macro augments `DEFINE-MESSAGE-HANDLER', by pushing a `CONVERGECAST' command onto the `PROCESS's command stack. This command takes no arguments, but expects a `CONVERGECAST-FRAME' to be on the data stack when it is called. Thus, either the handler must prepare the data frame, or it must be prepared by whatever script is pushed onto the command stack by the handler. Additionally, inside the context of `DEFINE-CONVERGECAST-HANDLER' we have access to a pair of helper functions:
 
@@ -139,7 +137,7 @@ Where `REPLIES' is assumed to be a `LIST'. Additionally, when `HANDLE-RTS?' is t
 WARNING: `RETURN-FROM-CAST' calls `PUSH-CONVERGECAST-FRAME' as part of the aborting process. If a frame has already been pushed onto the data stack, we instead alter that frame rather than pushing an additional one (which could have strange consequences). Additionally, it is important to note that `RETURN-FROM-CAST' uses `FINISH-WITH-SCHEDULING' in order to return from the handler early."
   (a:with-gensyms (convergecast-frame reply-channel)
     `(define-message-handler ,handler-name
-         ((,process ,process-type) (,message ,message-type) ,now)
+         ((,process ,process-type) (,message ,message-type))
        (let ((,convergecast-frame nil)
              (,message (copy-message message))
              (,reply-channel (message-reply-channel ,message)))
@@ -173,12 +171,12 @@ WARNING: `RETURN-FROM-CAST' calls `PUSH-CONVERGECAST-FRAME' as part of the abort
                     (when ,reply-channel
                       (send-message ,reply-channel (make-message-rpc-done
                                                     :result value)))
-                    (finish-with-scheduling)))
+                    (finish-handler)))
              (declare (ignorable #'return-from-cast))
              (process-continuation ,process `(CONVERGECAST))
              ,@body))))))
 
-(define-process-upkeep ((process process) now)
+(define-process-upkeep ((process process))
     (CONVERGECAST)
   "Pops a frame off of the `PROCESS's data stack, and after checking that it is in fact a `CONVERGECAST-FRAME', unpacks `ABORTING?', `FUNC', `INPUT', `MESSAGE', and `TARGETS' from the frame. Unless `ABORTING?' is T, forwards along a copy of `MESSAGE' to all `TARGETS' and awaits replies. While awaiting replies, we handle RTSes gracefully if `HANDLE-RTS?' is T. Then, calculates a value to return by feeding the `INPUT' and all `REPLIES' to `FUNC' as (FUNCALL FUNC INPUT REPLIES). Finally, sends the computed result back to `REPLY-CHANNEL' if it is not null."
   (let ((frame (pop (process-data-stack process))))

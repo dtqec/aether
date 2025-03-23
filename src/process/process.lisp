@@ -59,7 +59,13 @@
     :initarg :process-peruse-inbox?
     :initform t
     :type boolean
-    :documentation "Defaults to T, which means that the `PROCESS' will search through the whole inbox when trying to find a match for clause. Otherwise, the `PROCESS' will only look at the first message in the inbox. Essentially toggles between clause-order precedence and inbox-order predence."))
+    :documentation "Defaults to T, which means that the `PROCESS' will search through the whole inbox when trying to find a match for clause. Otherwise, the `PROCESS' will only look at the first message in the inbox. Essentially toggles between clause-order precedence and inbox-order predence.")
+   (process-asleep-since
+    :accessor process-asleep-since
+    :initarg :process-asleep-since
+    :initform nil
+    :type (or null fraction)
+    :documentation "FRACTION is the time at which the process was removed from the simulation heap and set for wake-on-network activity.  NIL is a process which is currently in the simulation heap."))
   (:documentation "Models an individual concurrently-executing process.  On each tick, a `PROCESS' first checks its public mailbox for messages matched by `DEFINE-MESSAGE-DISPATCH' and, if an appropriate message is found, that message is processed.  If no matching message is found, the first command in `PROCESS-COMMAND-STACK' is processed instead, according to the semantics defined by `DEFINE-PROCESS-UPKEEP'.
 
 IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
@@ -78,45 +84,47 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
   (setf (process-command-stack process)
         (append commands (process-command-stack process))))
 
-(defgeneric process-upkeep (server now command command-args)
+(defgeneric process-upkeep (server command command-args)
   (:documentation "If a PROCESS has no pending requests to service, it may want to perform some computation of its own, which happens in this routine.  Such computations typically include sending messages and listening on private channels for responses.")
-  (:method (server now command command-args)
-    (declare (ignore now command-args))
+  (:method (server command command-args)
+    (declare (ignore command-args))
     (error "Undefined command ~a for server of type ~a."
            command (type-of server))))
 
-(defgeneric %message-dispatch (node now)
+(defgeneric %message-dispatch (node)
   (:documentation "Use DEFINE-MESSAGE-DISPATCH to install methods here."))
 
-(defmacro define-message-handler (handler-name ((process process-type) (message message-type) now) &body body)
+(defun finish-handler ()
+  "Return from the active aether process handler."
+  (error () "Not available outside of an aether process handler."))
+
+(defmacro define-message-handler (handler-name ((process process-type) (message message-type)) &body body)
   "Defines a function to be invoked by DEFINE-MESSAGE-DISPATCH."
   (multiple-value-bind (body decls documentation) (a:parse-body body :documentation t)
-    (a:with-gensyms (command commands)
-      `(defmethod ,handler-name ((,process ,process-type)
-                                 (,message ,message-type)
-                                 ,now)
-         ,@decls
-         ,@(list documentation)
-         (with-scheduling
-           (check-type ,message ,message-type)
-           (check-type ,process ,process-type)
-           (flet ((log-entry (&rest initargs)
-                    (when (process-debug? ,process)
-                      (apply #'log-entry
-                             (append initargs
-                                     (list :time ,now
-                                           :source-type ',process-type
-                                           :source (process-public-address ,process)))))))
-             (flet ((send-message (destination payload)
-                      (log-entry :entry-type 'send-message
-                                 :destination destination
-                                 :payload (copy-structure payload))
-                      (send-message destination payload)))
-               (declare (ignorable #'send-message))
-               ,@body)))))))
+    `(defmethod ,handler-name ((,process ,process-type)
+                               (,message ,message-type))
+       ,@decls
+       ,@(list documentation)
+       (check-type ,message ,message-type)
+       (check-type ,process ,process-type)
+       (macrolet ((finish-handler () '(return-from ,handler-name)))
+         (flet ((log-entry (&rest initargs)
+                  (when (process-debug? ,process)
+                    (apply #'log-entry
+                           (append initargs
+                                   (list :time (now)
+                                         :source-type ',process-type
+                                         :source (process-public-address ,process)))))))
+           (flet ((send-message (destination payload)
+                    (log-entry :entry-type 'send-message
+                               :destination destination
+                               :payload (copy-structure payload))
+                    (send-message destination payload)))
+             (declare (ignorable #'send-message))
+             ,@body))))))
 
 (define-message-handler handle-message-RTS
-    ((process process) (message message-RTS) now)
+    ((process process) (message message-RTS))
   "Default handler for when a `PROCESS' receives a `MESSAGE-RTS'. Throws an error."
   (error "Got an RTS"))
 
@@ -134,8 +142,8 @@ NOTES:
   + `PROCESS-PERUSE-INBOX?' is passed along to `RECEIVE-MESSAGE', where it determines how we search for a message to handle.
 
 WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you will probably stall the underlying `PROCESS' if you perform some waiting action here, like the analogue of a `SYNC-RECEIVE'."
-  (a:with-gensyms (node message now results trapped?)
-    `(defmethod %message-dispatch ((,node ,node-type) ,now)
+  (a:with-gensyms (node message results trapped?)
+    `(defmethod %message-dispatch ((,node ,node-type))
        ,@(mapcar
           (lambda (clause)
             (cond
@@ -159,44 +167,45 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
                       (,message-type
                        (when (process-debug? ,node)
                          (log-entry :source-type ',node-type
-                                    :time ,now
+                                    :time (now)
                                     :entry-type 'handler-invoked
                                     :source (process-public-address ,node)
                                     :message-id (message-message-id ,message)
                                     :payload-type ',message-type))
                        (return-from %message-dispatch
                          (values
-                          (funcall ,receiver ,node ,message ,now)
+                          (funcall ,receiver ,node ,message)
                           t)))))))
               (t
                (error "Bad DEFINE-MESSAGE-DISPATCH clause: ~a" clause))))
           clauses))))
 
-(defun message-dispatch (node now)
+(defun message-dispatch (node)
   "Use DEFINE-MESSAGE-DISPATCH to install methods here."
-  (multiple-value-bind (results trapped?) (%message-dispatch node now)
+  (multiple-value-bind (results trapped?) (%message-dispatch node)
+    (declare (ignore results))
     (when trapped?
-      (return-from message-dispatch (values results trapped?)))
-    (receive-message ((process-key node) message
-                      :catch-RTS? nil  ; we do this ourselves so we can log-entry
-                      :peruse-inbox? (process-peruse-inbox? node))
-      (message-RTS
-       (when (process-debug? node)
-         (log-entry :source-type (type-of node)
-                    :time now
-                    :entry-type 'handler-invoked
-                    :source (process-public-address node)
-                    :message-id (message-message-id message)
-                    :payload-type (type-of message)))
-       (return-from message-dispatch
-         (values (funcall 'handle-message-RTS node message now) t))))))
+      (return-from message-dispatch t)))
+  (receive-message ((process-key node) message
+                    :catch-RTS? nil ; we do this ourselves so we can log-entry
+                    :peruse-inbox? (process-peruse-inbox? node))
+    (message-RTS
+     (when (process-debug? node)
+       (log-entry :source-type (type-of node)
+                  :time (now)
+                  :entry-type 'handler-invoked
+                  :source (process-public-address node)
+                  :message-id (message-message-id message)
+                  :payload-type (type-of message)))
+     (return-from message-dispatch
+       (values (funcall 'handle-message-RTS node message) t)))))
 
 ;; TODO: DEFINE-DPU-MACRO and DEFINE-DPU-FLET don't check syntactic sanity at
 ;;       their runtime, they wait for DEFINE-PROCESS-UPKEEP to discover it.
 (defmacro define-dpu-macro (macro-name argument-list &body body)
   "Defines a local macro to be used inside of DEFINE-PROCESS-UPKEEP.
 
-NOTE: Automatically binds PROCESS-NAME and NOW to their values from within D-P-U."
+NOTE: Automatically binds PROCESS-NAME to its value from within D-P-U."
   (a:with-gensyms (definition-pair)
     (let ((warning (format nil "~a is not available outside the body of DEFINE-PROCESS-UPKEEP."
                            macro-name)))
@@ -223,7 +232,7 @@ NOTE: Automatically binds PROCESS-NAME and NOW to their values from within D-P-U
 (defmacro define-dpu-flet (function-name argument-list &body body)
   "Defines a local function to be used inside of DEFINE-PROCESS-UPKEEP.
 
-NOTE: Automatically binds ACTIVE?, NOW, and PROCESS-NAME to their values from within D-P-U."
+NOTE: Automatically binds ACTIVE? and PROCESS-NAME to their values from within D-P-U."
   (a:with-gensyms (definition-pair)
     (let ((warning (format nil "~a is not available outside the body of DEFINE-PROCESS-UPKEEP."
                            function-name)))
@@ -251,30 +260,30 @@ NOTE: Automatically binds ACTIVE?, NOW, and PROCESS-NAME to their values from wi
   
   (defun %dpu-flet-definitions (&key
                                   (active? (error "Supply ACTIVE?."))
-                                  (now (error "Supply NOW."))
                                   (process-name (error "Supply PROCESS-NAME.")))
     "This function produces a list of local function (re)definitions to be supplied in the body of DEFINE-PROCESS-UPKEEP.
 
 NOTE: LOG-ENTRY is treated separately."
     (loop :for (name args decls . body) :in **dpu-flets-available**
           :collect `(,name ,args ,@decls
-                           (let ((now ,now) (active? ,active?) (process-name ,process-name))
+                           (let ((active? ,active?) (process-name ,process-name))
                              (prog1 (progn ,@body)
-                               (setf ,now now
-                                     ,active? active?
+                               (setf ,active? active?
                                      ,process-name process-name))))))
 
   (defun %dpu-macrolet-definitions (&key
-                                      (process-name (error "Supply PROCESS-NAME."))
-                                      (now (error "Supply NOW.")))
+                                      (process-name (error "Supply PROCESS-NAME.")))
     "This function produces a list of local macro definitions to be supplied in the body of DEFINE-PROCESS-UPKEEP."
     (loop :for (name args decls . body) :in **dpu-macros-available**
           :collect `(,name ,args ,@decls
-                           (let ((now ',now) (process-name ',process-name))
-                             (declare (ignorable now process-name))
+                           (let ((process-name ',process-name))
+                             (declare (ignorable process-name))
                              ,@body)))))
 
-(defmacro define-process-upkeep (((process-name process-type) now) (command &rest command-args) &body body)
+(define-condition dpu-exit (condition) ()
+  (:documentation "Used to terminate early whatever DEFINE-PROCESS-UPKEEP is currently running."))
+
+(defmacro define-process-upkeep (((process-name process-type)) (command &rest command-args) &body body)
   "Defines the behavior of a particular PROCESS (of type PROCESS-TYPE) as it enacts a COMMAND.
 
 PROCESS is COMMAND is a KEYWORD, and COMMAND-ARGS is a DESTRUCTURING-BIND-LAMBDA-LIST.
@@ -282,18 +291,15 @@ PROCESS is COMMAND is a KEYWORD, and COMMAND-ARGS is a DESTRUCTURING-BIND-LAMBDA
 Locally enables the use of the function PROCESS-DIE and the special form SYNC-RECEIVE."
   (check-type command symbol)
   (multiple-value-bind (body decls docstring) (a:parse-body body :documentation t)
-    (a:with-gensyms (command-place argument-list active? events)
-      (let ((macrolet-definitions (%dpu-macrolet-definitions :process-name process-name
-                                                             :now now))
+    (a:with-gensyms (command-place argument-list active?)
+      (let ((macrolet-definitions (%dpu-macrolet-definitions :process-name process-name))
             (flet-definitions (%dpu-flet-definitions :active? active?
-                                                     :now now
                                                      :process-name process-name)))
         `(defmethod process-upkeep ((,process-name ,process-type)
-                                    ,now
                                     (,command-place (eql ',command))
                                     ,argument-list)
            ,@(when docstring (list docstring))
-           (declare (ignorable ,command-place ,process-name ,now))
+           (declare (ignorable ,command-place ,process-name))
            (let ((*local-courier* (process-courier ,process-name)))
              ;; log-entry is treated separately, since we want the other FLETs
              ;; to pick it up and use it.
@@ -304,45 +310,53 @@ Locally enables the use of the function PROCESS-DIE and the special form SYNC-RE
                                (append initargs
                                        (list :source (process-public-address ,process-name)
                                              :source-type ',process-type
-                                             :time ,now))))))
-               (initialize-and-return ((,active? t) (,events nil))
-                 (setf ,events
-                       (with-scheduling
-                         (destructuring-bind ,command-args ,argument-list
-                           ,@decls
-                           (macrolet ,macrolet-definitions
-                             ;; install log wrappers around common functions
-                             (flet ,flet-definitions
-                               (declare (ignorable ,@(loop :for (name . rest) :in flet-definitions
-                                                           :collect `#',name)))
-                               ;; announce start of upkeep
-                               (log-entry :entry-type 'command
-                                          :command ',command
-                                          :arguments (copy-seq ,argument-list)
-                                          :next-command (caar (process-command-stack ,process-name)))
-                               ,@body)))))))))))))
+                                             :time (now)))))))
+               (initialize-and-return ((,active? t))
+                 (handler-case
+                     (destructuring-bind ,command-args ,argument-list
+                       ,@decls
+                       (macrolet ,macrolet-definitions
+                         ;; install log wrappers around common functions
+                         (flet ,flet-definitions
+                           (declare (ignorable ,@(loop :for (name . rest) :in flet-definitions
+                                                       :collect `#',name)))
+                           ;; announce start of upkeep
+                           (log-entry :entry-type 'command
+                                      :command ',command
+                                      :arguments (copy-seq ,argument-list)
+                                      :next-command (caar (process-command-stack ,process-name)))
+                           ,@body)))
+                   (dpu-exit ()  (values)))))))))))
 
-(define-object-handler ((process process) time)
+(define-object-handler ((process process))
   "Determines the behavior of a generic PROCESS. See DEFINE-MESSAGE-DISPATCH and DEFINE-PROCESS-UPKEEP for details."
-  (with-slots (process-key process-clock-rate process-exhaust-inbox?) process
-    (let ((*local-courier* (process-courier process))
-          (active? nil))
-      (multiple-value-bind (events progress?)
-          (message-dispatch process time)
-        (when progress?
-          (schedule* events)
+  (block nil
+    (assert (null (process-asleep-since process)))
+    (with-slots (process-key process-clock-rate process-exhaust-inbox?) process
+      (let ((*local-courier* (process-courier process))
+            (active? nil))
+        (when (message-dispatch process)
           (when process-exhaust-inbox?
-            (schedule process time)
-            (finish-with-scheduling))))
-      (when (peek (process-command-stack process))
-        (destructuring-bind (command &rest args) (pop (process-command-stack process))
-          (multiple-value-bind (events active-after-action)
-              (process-upkeep process time command args)
-            (schedule* events)
-            (setf active? active-after-action))))
-      (cond
-        (active?
-         (schedule process (+ time (/ process-clock-rate))))
-        ;; tear down the process
-        ((not active?)
-         (unregister (process-key process)))))))
+            (schedule process (now))
+            (return)))
+        (when (peek (process-command-stack process))
+          (destructuring-bind (command &rest args) (pop (process-command-stack process))
+            (setf active? (process-upkeep process command args))))
+        (cond
+          ;; tear down the process
+          ((not active?)
+           (unregister (process-key process)))
+          ((process-asleep-since process)
+           nil)
+          (active?
+           (schedule process (+ (now) (/ process-clock-rate)))))))))
+
+(defmethod wake-up ((process process))
+  (a:when-let* ((since (process-asleep-since process))
+                (next-tick (+ since
+                              (/ (1+ (floor (- (now) since)
+                                            (/ (process-clock-rate process))))
+                                 (process-clock-rate process)))))
+    (assert (<= (now) next-tick))
+    (setf (process-asleep-since process) nil)
+    (schedule process next-tick)))

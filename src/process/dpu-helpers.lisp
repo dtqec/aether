@@ -24,7 +24,7 @@
   (initialize-and-return ((result (send-message destination payload)))
     (when (process-debug? process-name)
       (setf (process-debug? process-name)
-            (list ':time now
+            (list ':time (now)
                   ':origin (type-of process-name)
                   ':destination-count 1
                   ':message (type-of payload))))
@@ -42,7 +42,7 @@
                                                :replies? replies?)))
     (when (process-debug? process-name)
       (setf (process-debug? process-name)
-            (list ':time now
+            (list ':time (now)
                   ':origin (type-of process-name)
                   ':destination-count (length destinations)
                   ':message (type-of (funcall payload-constructor)))))
@@ -50,6 +50,19 @@
                :destinations destinations
                :payload-constructor payload-constructor
                :replies? replies?)))
+
+(define-dpu-flet wake-on-network (&optional private-mailboxes)
+  "Sets this process to fall asleep, waking when its public mailbox or any of PRIVATE-MAILBOXES has a new message delivered."
+  (dolist (mailbox (list* (process-public-address process-name)
+                          private-mailboxes))
+    (push process-name (gethash (address-channel mailbox)
+                                (courier-listeners *local-courier*))))
+  (setf (process-asleep-since process-name) (now))
+  (values))
+
+(define-dpu-flet finish-handler ()
+  "Exits the current DEFINE-PROCESS-UPKEEP body."
+  (signal 'dpu-exit))
 
 ;;;
 ;;; macros
@@ -60,15 +73,13 @@
      (&body finalizer-body))
   "Irreversibly transfers control from the current command by replacing it with a `:REPEAT-UNTIL' command with the indicated `REPEATER' and `FINALIZER'."
   (a:with-gensyms (repeater finalizer)
-    `(flet ((,repeater (,now)
-              (declare (ignorable ,now))
-              (with-scheduling ,@repeater-body))
-            (,finalizer (,now)
-              (declare (ignorable ,now))
-              (with-scheduling ,@finalizer-body)))
+    `(flet ((,repeater ()
+              ,@repeater-body)
+            (,finalizer ()
+              ,@finalizer-body))
        (push (list 'REPEAT-UNTIL #',repeater #',finalizer)
              (process-command-stack ,process-name))
-       (finish-with-scheduling))))
+       (finish-handler))))
 
 ;; TODO: "SYNC"-RECEIVE is a somewhat misleading name.
 ;;       it's more like a busywaiting callback?
@@ -78,25 +89,26 @@
 IMPORTANT WARNING: `SYNC-RECEIVE' returns after it finishes executing its body.  Any code following a `SYNC-RECEIVE' **will not** be executed.
 
 NOTE: `MESSAGE-RTS' replies must be explicitly handled.  Otherwise, the default behavior is to throw an error, which can be seen in the definition of `RECEIVE-MESSAGE'."
-  (a:with-gensyms (sr-events sr-done? record)
+  (a:with-gensyms (retval sr-done? record)
     `(%install-repeat-until
          ((log-entry :entry-type 'command
-                     :time ,now
+                     :time (now)
                      :command 'sync-receive
                      :next-command (caar (process-command-stack ,process-name))
                      :sync-channel ,sync-channel)
-           (multiple-value-bind (,sr-events ,sr-done?)
+           (multiple-value-bind (,retval ,sr-done?)
                (receive-message (,sync-channel ,sync-message-place)
                  ,@(loop :for (clause-head . clause-body) :in sync-clauses
                          :collect `(,clause-head
-                                    (with-scheduling
-                                      (a:when-let ((,record (process-debug? ,process-name)))
-                                        (setf ,record (list* ':delta (- ,now (getf ,record ':time))
-                                                             ,record))
-                                        (remf ,record ':time)
-                                        (apply #'tracer-store ,record))
-                                      ,@clause-body))))
-             (schedule* ,sr-events)
+                                    (a:when-let ((,record (process-debug? ,process-name)))
+                                      (setf ,record (list* ':delta (- (now) (getf ,record ':time))
+                                                           ,record))
+                                      (remf ,record ':time)
+                                      (apply #'tracer-store ,record))
+                                    ,@clause-body)))
+             (declare (ignore ,retval))
+             (unless ,sr-done?
+               (wake-on-network (list ,sync-channel)))
              ,sr-done?))
          (
           ;; no finalization after finishing the receive
@@ -153,10 +165,12 @@ Typical use looks like:
                            T))
                     :collect (cons ,listener ,reply) :into ,new-remainder
                   :finally (setf ,remainder ,new-remainder))
+            (unless (endp ,remainder)
+              (wake-on-network (mapcar #'car ,remainder)))
             (endp ,remainder))
            (;; finalizer
             (a:when-let ((,record (process-debug? ,process-name)))
-              (setf ,record (list* ':delta (- ,now (getf ,record ':time)) ,record))
+              (setf ,record (list* ':delta (- (now) (getf ,record ':time)) ,record))
               (remf ,record ':time)
               (apply #'tracer-store ,record))
             ,@body)))))
@@ -165,12 +179,11 @@ Typical use looks like:
 ;;; commands
 ;;;
 
-(define-process-upkeep ((process T) now) (REPEAT-UNTIL callback finalize)
-  "Repeatedly calls CALLBACK: (TIME) --> (VALUES EVENTS DONE?) until DONE? is non-NIL.  Then, calls FINALIZE: (TIME) --> (EVENTS) once."
-  (multiple-value-bind (events done?) (funcall callback now)
-    (schedule* events)
+(define-process-upkeep ((process T)) (REPEAT-UNTIL callback finalize)
+  "Repeatedly calls CALLBACK: () --> DONE? until DONE? is non-NIL.  Then, calls FINALIZE: () --> () once."
+  (let ((done? (funcall callback)))
     (cond
       ((and done? finalize)
-       (schedule* (funcall finalize now)))
+       (funcall finalize))
       (t
        (push `(REPEAT-UNTIL ,callback ,finalize) (process-command-stack process))))))

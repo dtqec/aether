@@ -15,30 +15,30 @@
 (defclass c (a)
   ())
 
-(define-object-handler ((a a) now)
+(define-object-handler ((a a))
   (incf (a-slot a) 2)
   (log-entry :source a
              :source-type (type-of a)
-             :time now
+             :time (now)
              :entry-type 'a
              :slot (a-slot a))
-  (schedule a (1+ now)))
+  (schedule a (1+ (now))))
 
-(define-object-handler ((b b) now)
+(define-object-handler ((b b))
   (log-entry :source b
              :source-type (type-of b)
-             :time now
+             :time (now)
              :entry-type 'b)
-  (when (< now (b-cutoff b))
-    (schedule b (+ 1 now))
-    (schedule b (+ 2 now))))
+  (when (< (now) (b-cutoff b))
+    (schedule b (+ 1 (now)))
+    (schedule b (+ 2 (now)))))
 
-(define-object-handler ((c c) now)
+(define-object-handler ((c c))
   (log-entry :source c
              :source-type (type-of c)
-             :time now
+             :time (now)
              :entry-type 'c)
-  (schedule* (call-next-method)))
+  (call-next-method))
 
 (deftest test-event-loop ()
   (with-transient-logger ()

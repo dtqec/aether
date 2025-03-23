@@ -14,9 +14,9 @@
   "Demo message type. Supposed to be delayed by an established lock on a process.")
 
 (define-message-handler handle-message-test-lock
-    ((process process-lockable-test) (message message-test-lock) now)
+    ((process process-lockable-test) (message message-test-lock))
   "Records the receipt of a test lock message."
-  (push `(,(process-tree-id process) ,now) *locking-events*))
+  (push `(,(process-tree-id process) ,(now)) *locking-events*))
 
 (defmethod process-lockable-targets ((process process-lockable-test))
   "See `PROCESS-TREE-CHILDREN' for more information."
@@ -41,16 +41,20 @@
                         (make-message-lock :reply-channel rx-channel))
           ;; wait for the lock to establish
           (simulation-run simulation :canary (canary-until 20))
+          (setf (simulation-horizon simulation)
+                (max 20 (simulation-horizon simulation)))
           (receive-message (rx-channel locked-message)
             (message-rpc-done
              (let ((tx-channel (message-rpc-done-result locked-message)))
                ;; send a blocked message
-               (send-message (process-public-address (nth 3 processes))
-                             (make-message-test-lock))
+               (with-active-simulation simulation
+                 (send-message (process-public-address (nth 3 processes))
+                               (make-message-test-lock)))
                ;; wait a bit
                (simulation-run simulation :canary (canary-until 30))
                ;; release the lock
-               (send-message tx-channel (make-message-unlock))
+               (with-active-simulation simulation
+                 (send-message tx-channel (make-message-unlock)))
                ;; wait for the lock to release
                (simulation-run simulation :canary (canary-until 40))
                (receive-message (rx-channel released-message)

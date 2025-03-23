@@ -126,7 +126,7 @@
   (result))
 
 (define-message-handler handle-message-lock
-    ((process process-lockable) (message message-lock) now)
+    ((process process-lockable) (message message-lock))
   "Attempts to lock PROCESS."
   (with-slots (reply-channel) message
     (with-slots (aborting? locked?) process
@@ -137,7 +137,7 @@
          (setf locked? t)
          (process-continuation process `(START-LOCK ,reply-channel)))))))
 
-(define-process-upkeep ((process process-lockable) now)
+(define-process-upkeep ((process process-lockable))
     (START-LOCK reply-channel)
   "Locks `PROCESS'.  `REPLY-CHANNEL' indicates the address (if any) on which to signal whether the lock was / was not established."
   (with-slots (aborting? done-signal locked? downward-rx-latches downward-tx-latches upward-rx-latch upward-tx-latch) process
@@ -154,7 +154,7 @@
                           `(BROADCAST-UNLOCK)
                           `(%FINISH-UNLOCK))))
 
-(define-process-upkeep ((process process-lockable) now)
+(define-process-upkeep ((process process-lockable))
     (BROADCAST-LOCK targets)
   "Establishes locks on `TARGETS'."
   (with-slots (aborting? downward-rx-latches downward-tx-latches
@@ -186,7 +186,7 @@
             (send-message upward-tx-latch
                           (make-message-rpc-done :result upward-rx-latch))))))))
 
-(define-process-upkeep ((process process-lockable) now)
+(define-process-upkeep ((process process-lockable))
     (%WAIT-FOR-UNLOCK)
   "Waits for a release signal to arrive via `UPWARD-RX-LATCH'."
   (with-slots (aborting? done-signal upward-rx-latch) process
@@ -199,7 +199,7 @@
                upward-rx-latch (unregister upward-rx-latch)))))))
 
 ;; TODO: this (and %FINISH-UNLOCKS) ought to be paired by a "context macro"
-(define-process-upkeep ((process process-lockable) now)
+(define-process-upkeep ((process process-lockable))
     (BROADCAST-UNLOCK &key &allow-other-keys)
   "Cleans up after BROADCAST-LOCK."
   (with-slots (aborting? done-signal downward-rx-latches downward-tx-latches upward-tx-latch) process
@@ -213,7 +213,7 @@
       (when upward-tx-latch
         (send-message upward-tx-latch (make-message-rpc-done :result t))))))
 
-(define-process-upkeep ((process process-lockable) now)
+(define-process-upkeep ((process process-lockable))
     (%FINISH-UNLOCK)
   "Cleans up after START-LOCK."
   (with-slots (aborting? done-signal locked? downward-rx-latches downward-tx-latches upward-rx-latch upward-tx-latch) process

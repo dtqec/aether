@@ -35,7 +35,9 @@
 `INBOXES': A hash table mapping channels serviced by this courier to mailbox queues.
 `SECRETS': A hash table mapping channels serviced by this courier to the private sigils used to distinguish mailbox owners.
 `ID': A unique identifier for this courier. WARNING: Expect subclasses of `COURIER' to require specific types and values here.
-`NEIGHBORS': Used to store routing information. WARNING: By default, this is a hash mapping courier `ID's in the network to their object instances. Expect subclasses of `COURIER' to install different types and values here."
+`NEIGHBORS': Used to store routing information. WARNING: By default, this is a hash mapping courier `ID's in the network to their object instances. Expect subclasses of `COURIER' to install different types and values here.
+`ASLEEP-SINCE': Couriers which are not processing inbound messages fall asleep and are temporarily removed from the event heap.  This slot records the last time at which this courier had its event handler processed.
+`LISTENERS': Mapping from inboxes to lists of processes to `WAKE-UP' when a new message arrives."
   (queue (make-q)) ; messages not yet sorted
   (inboxes (make-hash-table :test 'eq))
   (secrets (make-hash-table :test 'eq))
@@ -43,8 +45,8 @@
   (default-routing-time-step *routing-time-step*)
   (id (get-courier-index))
   (neighbors (make-hash-table))
-  ; TODO GH-28: listeners?
-  )
+  (asleep-since nil)  ; :type (or nil 'fraction)
+  (listeners (make-hash-table :test 'eq)))
 
 (defmethod print-object ((object courier) stream)
   (print-unreadable-object (object stream :type t :identity t)))
@@ -88,6 +90,7 @@
       ;; expunge the mailbox
       (remhash channel (courier-secrets *local-courier*))
       (remhash channel (courier-inboxes *local-courier*))
+      (remhash channel (courier-listeners *local-courier*))
       (values))))
 
 ;;;
@@ -105,6 +108,9 @@
          (a:when-let ((reply-channel (message-reply-channel payload)))
            (send-message reply-channel (make-message-RTS))))
         (t
+         (dolist (sleeper (gethash channel (courier-listeners *local-courier*)))
+           (wake-up sleeper))
+         (setf (gethash channel (courier-listeners *local-courier*)) nil)
          (q-enq payload inbox)))
       t)))
 
@@ -114,6 +120,9 @@
                  (courier-id *local-courier*))
           ()
           "ADDRESS must belong to *LOCAL-COURIER*.")
+  (assert (nth-value 1 (gethash (address-channel address) (courier-secrets *local-courier*)))
+          ()
+          "Local ADDRESS is not registered to *LOCAL-COURIER*.")
   (assert (eql (address-secret address)
                (gethash (address-channel address)
                         (courier-secrets *local-courier*)))
@@ -122,6 +131,7 @@
 
 (defun deliver-message (processing-courier message)
   "Used to simulate the transmission of a message to the next COURIER."
+  (wake-up processing-courier)
   (q-enq message (courier-queue processing-courier))
   (values))
 
@@ -187,18 +197,15 @@ NOTES:
   Returns as a secondary value whether a message was processed.  (An `OTHERWISE' clause also results in a secondary value of NIL.)"
   (when catch-RTS?
     (setf clauses (append clauses `((message-RTS (error "Got an RTS."))))))
-  (unless (eql 0 timeout)
-    (error "Blocking RECEIVE-MESSAGE not currently supported."))
+  (assert (zerop timeout) () "Blocking RECEIVE-MESSAGE not currently supported.")
   (a:with-gensyms (block-name inbox found? q-deq-fn)
     (flet ((process-clause (clause-head clause-body)
              `(a:when-let ((,message
-                           (funcall ,q-deq-fn ,inbox
-                                    (lambda (m) (typep m ',clause-head)))))
-               (return-from ,block-name
-                 (values
-                  (progn
-                    ,@clause-body)
-                  t)))))
+                            (funcall ,q-deq-fn ,inbox
+                                     (lambda (m) (typep m ',clause-head)))))
+                (return-from ,block-name
+                  (values (progn ,@clause-body)
+                          t)))))
       `(block ,block-name
          (check-key-secret ,address)
          (let ((,q-deq-fn (if ,peruse-inbox? #'q-deq-first #'q-deq-when)))
@@ -219,24 +226,35 @@ NOTES:
 ;;; event producers for message passing infrastructure
 ;;;
 
-(define-object-handler ((courier courier) now)
+(define-object-handler ((courier courier))
   "Processes messages in the COURIER's I/O queue: messages bound for other COURIERs get forwarded, and messages bound for this COURIER get sorted into local mailboxes."
   (when (q-empty (courier-queue courier))
-    (schedule courier (+ now (/ (courier-processing-clock-rate courier))))
-    (finish-with-scheduling))
+    (setf (courier-asleep-since courier) (now))
+    (return))
   (let ((message (q-deq (courier-queue courier)))
         (*local-courier* courier))
     (cond
       ;; are we this message's destination?
       ((stash-local-message message)
-       (schedule courier now))
+       (schedule courier (now)))
       ;; otherwise, route it
       (t
        (multiple-value-bind (intermediate-destination time-to-deliver)
            (courier-courier->route courier (first message))
          (setf time-to-deliver (or time-to-deliver
                                    (courier-default-routing-time-step courier)))
-         (schedule courier (+ now (/ (courier-processing-clock-rate courier))))
          (schedule (ignorant-lambda
                      (deliver-message intermediate-destination message))
-                   (+ now time-to-deliver)))))))
+                   (+ (now) time-to-deliver))
+         (schedule courier (+ (now) (/ (courier-processing-clock-rate courier)))))))))
+
+(defgeneric wake-up (courier)
+  (:documentation "If this actor has previously fallen asleep and was removed from the simulation heap, this re-inserts it.  (No action if the actor is already awake.)")
+  (:method ((courier courier))
+    (a:when-let* ((since (courier-asleep-since courier))
+                  (next-tick (+ since
+                                (/ (ceiling (- (now) since)
+                                            (/ (courier-processing-clock-rate courier)))
+                                   (courier-processing-clock-rate courier)))))
+      (setf (courier-asleep-since courier) nil)
+      (schedule courier next-tick))))

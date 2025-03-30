@@ -84,6 +84,21 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
   (setf (process-command-stack process)
         (append commands (process-command-stack process))))
 
+(defun mailbox-size (process)
+  "Calculates the size of the malibox message queue for `PROCESS'."
+  (with-slots (channel secret) (process-key process)
+    (assert (eq secret (gethash channel (courier-secrets *local-courier*)))
+            () "Cannot retrieve mailbox size -- mailbox secret is incorrect.")
+    (q-len (gethash channel (courier-inboxes *local-courier*)))))
+
+(defun clear-inbox (process)
+  "Empties out the message queue in `PROCESS's inbox at `*LOCAL-COURIER*'"
+  (with-slots (channel secret) (process-key process)
+    (assert (eq secret (gethash channel (courier-secrets *local-courier*)))
+            () "Cannot clear inbox -- mailbox secret is incorrect.")
+    ;; reset the courier-inboxes entry to an empty queue
+    (setf (gethash channel (courier-inboxes *local-courier*)) (make-q))))
+
 (defgeneric process-upkeep (server command command-args)
   (:documentation "If a PROCESS has no pending requests to service, it may want to perform some computation of its own, which happens in this routine.  Such computations typically include sending messages and listening on private channels for responses.")
   (:method (server command command-args)

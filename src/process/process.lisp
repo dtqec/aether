@@ -128,8 +128,7 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
                     (apply #'log-entry
                            (append initargs
                                    (list :time (now)
-                                         :source-type ',process-type
-                                         :source (process-public-address ,process)))))))
+                                         :source ,process))))))
            (flet ((send-message (destination payload)
                     (log-entry :entry-type 'send-message
                                :destination destination
@@ -181,10 +180,9 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
                                                       ,node))
                       (,message-type
                        (when (process-debug? ,node)
-                         (log-entry :source-type ',node-type
-                                    :time (now)
+                         (log-entry :time (now)
                                     :entry-type 'handler-invoked
-                                    :source (process-public-address ,node)
+                                    :source ,node
                                     :message-id (message-message-id ,message)
                                     :payload-type ',message-type))
                        (return-from %message-dispatch
@@ -206,10 +204,9 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
                     :peruse-inbox? (process-peruse-inbox? node))
     (message-RTS
      (when (process-debug? node)
-       (log-entry :source-type (type-of node)
-                  :time (now)
+       (log-entry :time (now)
                   :entry-type 'handler-invoked
-                  :source (process-public-address node)
+                  :source node
                   :message-id (message-message-id message)
                   :payload-type (type-of message)))
      (return-from message-dispatch
@@ -323,8 +320,7 @@ Locally enables the use of the function PROCESS-DIE and the special form SYNC-RE
                       (when (process-debug? ,process-name)
                         (apply #'log-entry
                                (append initargs
-                                       (list :source (process-public-address ,process-name)
-                                             :source-type ',process-type
+                                       (list :source ,process-name
                                              :time (now)))))))
                (initialize-and-return ((,active? t))
                  (handler-case

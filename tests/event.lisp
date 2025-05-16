@@ -18,7 +18,6 @@
 (define-object-handler ((a a))
   (incf (a-slot a) 2)
   (log-entry :source a
-             :source-type (type-of a)
              :time (now)
              :entry-type 'a
              :slot (a-slot a))
@@ -26,7 +25,6 @@
 
 (define-object-handler ((b b))
   (log-entry :source b
-             :source-type (type-of b)
              :time (now)
              :entry-type 'b)
   (when (< (now) (b-cutoff b))
@@ -35,7 +33,6 @@
 
 (define-object-handler ((c c))
   (log-entry :source c
-             :source-type (type-of c)
              :time (now)
              :entry-type 'c)
   (call-next-method))

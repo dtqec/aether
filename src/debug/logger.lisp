@@ -20,9 +20,9 @@
 ;;     automatic 'conversion' routines which do things like, e.g., discard
 ;;     pointers to objects and retain only their public addresses.
 
-(defun log-entry (&rest initargs &key (logger *logger*) source source-type time entry-type &allow-other-keys)
+(defun log-entry (&rest initargs &key (logger *logger*) source time entry-type &allow-other-keys)
   "Injects a log entry."
-  (declare (ignore source source-type entry-type time))
+  (declare (ignore source entry-type time))
   (when logger
     (let ((keys (copy-seq initargs)))
       (remf keys ':logger)
@@ -43,29 +43,26 @@
 
 ;;; pretty-printing mechanisms
 
-(defgeneric print-log-entry (entry source-type entry-type &optional stream)
+(defgeneric print-log-entry (entry source entry-type &optional stream)
   (:documentation "Pretty-prints a log entry to STREAM.")
-  (:method (entry source-type entry-type &optional (stream *standard-output*))
+  (:method (entry source entry-type &optional (stream *standard-output*))
     (let ((entry (copy-seq entry))
           (time (getf entry ':time))
-          (source-type (getf entry ':source-type))
           (source (getf entry ':source))
           (entry-type (getf entry ':entry-type)))
       (remf entry ':time)
-      (remf entry ':source-type)
       (remf entry ':source)
       (remf entry ':entry-type)
-      (format stream "~5f: ~a @ ~a logged ~a:~%    ~a~%"
-              time source-type source entry-type
+      (format stream "~5f: ~a logged ~a:~%    ~a~%"
+              time source entry-type
               entry))))
 
 (defmethod print-log-entry (entry
-                            source-type
+                            source
                             (entry-type (eql 'SEND-MESSAGE))
                             &optional (stream *standard-output*))
-  (format stream "~5f: ~a @ ~a sending ~a to ~a:~%    ~a~%"
+  (format stream "~5f: ~a sending ~a to ~a:~%    ~a~%"
           (getf entry ':time)
-          (getf entry ':source-type)
           (getf entry ':source)
           (type-of (getf entry ':payload))
           (getf entry ':destination)
@@ -74,7 +71,7 @@
 (defun print-log (entries &optional (stream *standard-output*))
   (dolist (entry entries)
     (print-log-entry entry
-                     (getf entry ':source-type)
+                     (getf entry ':source)
                      (getf entry ':entry-type)
                      stream)))
 

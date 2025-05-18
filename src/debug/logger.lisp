@@ -35,7 +35,7 @@
     (setf (logger-entries logger) nil)))
 
 (defmacro with-transient-logger (() &body body)
-  "Initialize a fresh logger.  Returns log contents on close."
+  "Initialize a fresh logger. Returns log contents on close."
   `(let ((*logger* (make-logger)))
      (reset-logger)
      ,@body
@@ -75,6 +75,8 @@
                      (getf entry ':entry-type)
                      stream)))
 
+;;; filtering mechanisms
+
 (defun message-log (logger)
   "Given a `LOGGER', filter it so that it only contains `SEND-MESSAGE' entries. Re-sends are not included."
   (let (entries message-ids)
@@ -101,3 +103,11 @@
           :do (format t "~%~A: ~A" message-type num)
               (setf total-count (+ num total-count)))
     (format t "~%TOTAL: ~A" total-count)))
+
+(defun trim-log (logger &key (start-time 0) (end-time most-positive-fixnum))
+  "Trims log messages to only ones in between `START-TIME' and `END-TIME'."
+  (let (entries)
+    (dolist (entry (reverse (logger-entries logger)) (reverse entries))
+      (when (and (<= start-time (getf entry ':time))
+                 (>= end-time (getf entry ':time)))
+        (push entry entries)))))

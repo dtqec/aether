@@ -45,12 +45,15 @@
   
   ;; logger.lisp
   (:export
-   #:log-entry                          ; FUNCTION
-   #:with-transient-logger              ; MACRO
    #:*logger*                           ; PARAMETER
+   #:logger-entries                     ; ACCESSOR
+   #:log-entry                          ; FUNCTION
    #:reset-logger                       ; FUNCTION
-   #:logger-entries                     ; FUNCTION
+   #:with-transient-logger              ; MACRO
+   #:print-log-entry                    ; GENERIC FUNCTION
    #:print-log                          ; FUNCTION
+   #:message-log                        ; FUNCTION
+   #:message-report                     ; FUNCTION
    #:print-message-report               ; FUNCTION
    )
   

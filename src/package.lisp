@@ -56,6 +56,9 @@
    #:message-report                     ; FUNCTION
    #:print-message-report               ; FUNCTION
    #:trim-log                           ; FUNCTION
+   #:logs-for-process                   ; FUNCTION
+   #:logs-for-address                   ; FUNCTION
+   #:logs-for-channel                   ; FUNCTION
    )
   
   ;; event.lisp

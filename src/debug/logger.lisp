@@ -111,3 +111,25 @@
       (when (and (<= start-time (getf entry ':time))
                  (>= end-time (getf entry ':time)))
         (push entry entries)))))
+
+(defun logs-for-process (logger process)
+  "Trims log messages to only ones produced by `PROCESS'."
+  (let (entries)
+    (dolist (entry (reverse (logger-entries logger)) (reverse entries))
+      (when (eql (getf entry ':source) process)
+        (push entry entries)))))
+
+(defun logs-for-address (logger address)
+  "Trims log messages to only ones produced by the process at public address `ADDRESS'."
+  (let (entries)
+    (dolist (entry (reverse (logger-entries logger)) (reverse entries))
+      (when (address= (process-public-address (getf entry ':source)) address)
+        (push entry entries)))))
+
+(defun logs-for-channel (logger channel)
+  "Trims log messages to only ones produced by the process with public address channel `CHANNEL'."
+  (let (entries)
+    (dolist (entry (reverse (logger-entries logger)) (reverse entries))
+      (when (eql (address-channel (process-public-address (getf entry ':source)))
+                 channel)
+        (push entry entries)))))

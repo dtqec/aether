@@ -68,8 +68,9 @@
           (getf entry ':destination)
           (getf entry ':payload)))
 
-(defun print-log (entries &optional (stream *standard-output*))
-  (dolist (entry entries)
+(defun print-log (logger &optional (stream *standard-output*))
+  "Iterate through the entries in `LOGGER' in reverse order and print them using `PRINT-LOG-ENTRY' which can be specialized on `SOURCE' and `ENTRY-TYPE'."
+  (dolist (entry (reverse (logger-entries logger)))
     (print-log-entry entry
                      (getf entry ':source)
                      (getf entry ':entry-type)

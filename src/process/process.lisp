@@ -130,7 +130,7 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
                                    (list :time (now)
                                          :source ,process))))))
            (flet ((send-message (destination payload)
-                    (log-entry :entry-type 'send-message
+                    (log-entry :entry-type ':send-message
                                :destination destination
                                :payload (copy-structure payload))
                     (send-message destination payload)))
@@ -181,7 +181,7 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
                       (,message-type
                        (when (process-debug? ,node)
                          (log-entry :time (now)
-                                    :entry-type 'handler-invoked
+                                    :entry-type ':handler-invoked
                                     :source ,node
                                     :message-id (message-message-id ,message)
                                     :payload-type ',message-type))
@@ -205,7 +205,7 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
     (message-RTS
      (when (process-debug? node)
        (log-entry :time (now)
-                  :entry-type 'handler-invoked
+                  :entry-type ':handler-invoked
                   :source node
                   :message-id (message-message-id message)
                   :payload-type (type-of message)))
@@ -332,7 +332,7 @@ Locally enables the use of the function PROCESS-DIE and the special form SYNC-RE
                            (declare (ignorable ,@(loop :for (name . rest) :in flet-definitions
                                                        :collect `#',name)))
                            ;; announce start of upkeep
-                           (log-entry :entry-type 'command
+                           (log-entry :entry-type ':command
                                       :command ',command
                                       :arguments (copy-seq ,argument-list)
                                       :next-command (caar (process-command-stack ,process-name)))

@@ -44,7 +44,7 @@
 ;;; pretty-printing mechanisms
 
 (defgeneric print-log-entry (entry source entry-type &optional stream)
-  (:documentation "Pretty-prints a log entry to STREAM.")
+  (:documentation "Pretty-prints a log entry `ENTRY' to `STREAM'. Can be specialized on `SOURCE' or `ENTRY-TYPE' to add specific printing behavior.")
   (:method (entry source entry-type &optional (stream *standard-output*))
     (let ((entry (copy-seq entry))
           (time (getf entry ':time))
@@ -59,7 +59,7 @@
 
 (defmethod print-log-entry (entry
                             source
-                            (entry-type (eql 'SEND-MESSAGE))
+                            (entry-type (eql ':send-message))
                             &optional (stream *standard-output*))
   (format stream "~5f: ~a sending ~a to ~a:~%    ~a~%"
           (getf entry ':time)
@@ -82,7 +82,7 @@
   "Given a `LOGGER', filter it so that it only contains `SEND-MESSAGE' entries. Re-sends are not included."
   (let (entries message-ids)
     (dolist (entry (reverse (logger-entries logger)) (reverse entries))
-      (when (eql 'SEND-MESSAGE (getf entry ':entry-type))
+      (when (eql ':send-message (getf entry ':entry-type))
         (with-slots (message-id) (getf entry ':payload)
           (when (not (member message-id message-ids))
             (push message-id message-ids)

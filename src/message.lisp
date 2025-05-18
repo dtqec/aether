@@ -17,7 +17,7 @@ NOTE: The SECRET field is \"optional\", in that only processes that possess the 
   (secret))
 
 (defmethod print-object ((object address) stream)
-  (print-unreadable-object (object stream :type t :identity nil)
+  (print-unreadable-object (object stream :type nil :identity nil)
     (format stream "~a" #+ignore (address-courier object) (address-channel object))))
 
 (defun address= (left right)

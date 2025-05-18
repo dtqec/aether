@@ -93,8 +93,9 @@
    #:courier                            ; TYPE
    #:private-key                        ; TYPE
    #:address                            ; TYPE
+   #:address-channel                    ; ACCESSOR
    #:address=                           ; FUNCTION
-   #:hash-address
+   #:hash-address                       ; FUNCTION
    #:make-courier                       ; FUNCTION
    #:courier-processing-clock-rate      ; FUNCTION
    #:with-courier                       ; MACRO

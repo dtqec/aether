@@ -158,7 +158,7 @@ if SN = sleeping then execute procedure wakeup"
         ;; contains w(j) and SE(j)
         (with-slots (edge-state edge-weight)
             (gethash edge (slot-value node 'adjacent-edges))
-          (log-entry :entry-type 'connect-handler
+          (log-entry :entry-type ':connect-handler
                      :edge edge
                      :edge-state edge-state
                      :edge-weight edge-weight
@@ -170,7 +170,7 @@ if SN = sleeping then execute procedure wakeup"
           (cond
             ;; if L < LN
             ((< level fragment-level)
-             (log-entry :entry-type 'level<fragment-level)
+             (log-entry :entry-type ':level<fragment-level)
              ;; 1. SE(j) <- Branch
              (setf edge-state ':BRANCH)
              ;; 2. send Initiate(LN, FN, SN) along j
@@ -184,15 +184,15 @@ if SN = sleeping then execute procedure wakeup"
                (incf (slot-value node 'find-count))))
             ;; elif SE(j) = Basic
             ((eql edge-state ':BASIC)
-             (log-entry :entry-type 'edge-state=basic)
+             (log-entry :entry-type ':edge-state=basic)
              ;; 1. place received message on end of queue
              ;; NOTE: this is implemented by self-sending the message
-             (log-entry :entry-type 'queueing-message
+             (log-entry :entry-type ':queueing-message
                         :message message)
              (send-message (process-public-address node) message))
             ;; else
             (t
-             (log-entry :entry-type 'else)
+             (log-entry :entry-type ':else)
              ;; 1. send Initiate(LN + 1, w(j), Find) along j
              (send-message edge (make-msg-initiate
                                  :edge address
@@ -207,7 +207,7 @@ if SN = sleeping then execute procedure wakeup"
   (let ((address (process-public-address node)))
     (with-slots (adjacent-edges find-count) node
       (with-slots (edge level state weight) message
-        (log-entry :entry-type 'initiate-handler
+        (log-entry :entry-type ':initiate-handler
                    :edge edge
                    :level level
                    :state state
@@ -257,7 +257,7 @@ if SN = sleeping then execute procedure wakeup"
       (with-slots (edge level weight) message
         ;; extract SE(j)
         (with-slots (edge-state) (gethash edge adjacent-edges)
-          (log-entry :entry-type 'test-handler
+          (log-entry :entry-type ':test-handler
                      :edge edge
                      :edge-state edge-state
                      :fragment-level (slot-value node 'fragment-level)
@@ -268,18 +268,18 @@ if SN = sleeping then execute procedure wakeup"
           (cond
             ;; if L > LN
             ((> level (slot-value node 'fragment-level))
-             (log-entry :entry-type 'level>fragment-level)
+             (log-entry :entry-type ':level>fragment-level)
              ;; 1. place received message on end of queue
              ;; NOTE: this is implemented by self-sending the message
              (send-message (process-public-address node) message))
             ;; else if F =/= FN
             ((/= weight (slot-value node 'fragment-weight))
-             (log-entry :entry-type 'weight=/=fragment-weight)
+             (log-entry :entry-type ':weight=/=fragment-weight)
              ;; 1. send Accept along j
              (send-message edge (make-msg-accept :edge address)))
             ;; else
             (t
-             (log-entry :entry-type 'else)
+             (log-entry :entry-type ':else)
              ;; 1. if SE(j) = Basic then SE(j) <- Rejected
              (when (eql edge-state ':BASIC)
                (setf edge-state ':REJECTED))
@@ -288,7 +288,7 @@ if SN = sleeping then execute procedure wakeup"
                ;; NOTE: the null check differs from the pseudocode, but from context
                ;;       it seems that they intend for nil to be considered not equal
                ((or (null test-edge) (not (address= test-edge edge)))
-                (log-entry :entry-type 'test-edge=/=edge)
+                (log-entry :entry-type ':test-edge=/=edge)
                 (send-message edge (make-msg-reject :edge address)))
                ;; 2. else, execute procedure test
                (t
@@ -335,7 +335,7 @@ if SN = sleeping then execute procedure wakeup"
   (with-slots (best-edge best-weight find-count in-branch) node
     ;; extract j and w from message
     (with-slots (edge weight) message
-      (log-entry :entry-type 'report-handler
+      (log-entry :entry-type ':report-handler
                  :best-edge best-edge
                  :best-weight best-weight
                  :edge edge
@@ -346,7 +346,7 @@ if SN = sleeping then execute procedure wakeup"
       (cond
         ;; if j =/= in-branch
         ((not (address= edge in-branch))
-         (log-entry :entry-type 'j=/=in-branch)
+         (log-entry :entry-type ':j=/=in-branch)
          ;; 1. find-count <- find-count - 1
          (decf find-count)
          ;; 2. if w < best-wt then best-weight <- w; best-edge <- j
@@ -356,20 +356,20 @@ if SN = sleeping then execute procedure wakeup"
          (process-continuation node `(REPORT)))
         ;; elif SN = Find
         ((eql (slot-value node 'node-state) ':FIND)
-         (log-entry :entry-type 'node-state=find)
+         (log-entry :entry-type ':node-state=find)
          ;; 1. place received message on end of queue
          ;; NOTE: this is implemented by self-sending the message
-         (log-entry :entry-type 'queueing-message
+         (log-entry :entry-type ':queueing-message
                     :message message)
          (send-message (process-public-address node) message))
         ;; elif w > best-wt
         ((> weight best-weight)
-         (log-entry :entry-type 'weight>best-weight)
+         (log-entry :entry-type ':weight>best-weight)
          ;; 1. execute procedure change-root
          (process-continuation node `(CHANGE-ROOT)))
         ;; else if w = best-wt = inf
         ((and (= weight best-weight) (= weight most-positive-fixnum))
-         (log-entry :entry-type 'weight=best-weight=infinity)
+         (log-entry :entry-type ':weight=best-weight=infinity)
          ;; 1. halt operation
          (process-continuation node `(HALT)))))))
 
@@ -426,7 +426,7 @@ if SN = sleeping then execute procedure wakeup"
                 (find-minimum-weight-edge adjacent-edges)))
           (with-slots (edge-state)
               (gethash minimum-weight-edge adjacent-edges)
-            (log-entry :entry-type 'wakeup
+            (log-entry :entry-type ':wakeup
                        :minimum-weight-edge minimum-weight-edge
                        :edge-state edge-state)
             ;; 2. SET(m) <- Branch; LN <- 0; SN <- Found; find-count <- 0
@@ -452,7 +452,7 @@ if SN = sleeping then execute procedure wakeup"
       (cond
         ;; if exists
         (minimum-weight-edge
-         (log-entry :entry-type 'found-minimum-weight-basic-edge
+         (log-entry :entry-type ':found-minimum-weight-basic-edge
                     :edge minimum-weight-edge)
          ;; 1. test-edge <- minimum-weight-edge
          (setf test-edge minimum-weight-edge)
@@ -464,7 +464,7 @@ if SN = sleeping then execute procedure wakeup"
                         :weight (slot-value node 'fragment-weight))))
         ;; else
         (t
-         (log-entry :entry-type 'else)
+         (log-entry :entry-type ':else)
          ;; 1. test-edge <- nil
          (setf test-edge nil)
          ;; 2. execute procedure report
@@ -475,7 +475,7 @@ if SN = sleeping then execute procedure wakeup"
   "When `FIND-COUNT' is zero and `TEST-EDGE' is NIL, set state to `:FOUND' and report our `BEST-WEIGHT' to `IN-BRANCH'."
   (with-slots (best-weight find-count in-branch test-edge) node
     ;; if find-count = 0 and test-edge = nil
-    (log-entry :entry-type 'report
+    (log-entry :entry-type ':report
                :find-count find-count
                :test-edge test-edge)
     (when (and (zerop find-count) (null test-edge))

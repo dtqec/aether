@@ -19,14 +19,14 @@
   (incf (a-slot a) 2)
   (log-entry :source a
              :time (now)
-             :entry-type 'a
+             :entry-type ':a
              :slot (a-slot a))
   (schedule a (1+ (now))))
 
 (define-object-handler ((b b))
   (log-entry :source b
              :time (now)
-             :entry-type 'b)
+             :entry-type ':b)
   (when (< (now) (b-cutoff b))
     (schedule b (+ 1 (now)))
     (schedule b (+ 2 (now)))))
@@ -34,7 +34,7 @@
 (define-object-handler ((c c))
   (log-entry :source c
              :time (now)
-             :entry-type 'c)
+             :entry-type ':c)
   (call-next-method))
 
 (deftest test-event-loop ()
@@ -47,9 +47,9 @@
       (simulation-run simulation :canary (canary-until 3))
       (is (equalp (mapcar (lambda (x)
                             (ecase (getf x ':entry-type)
-                              (a `(:a ,(getf x ':time) ,(getf x ':slot)))
-                              (b `(:b ,(getf x ':time)))
-                              (c `(:c ,(getf x ':time)))))
+                              (:a `(:a ,(getf x ':time) ,(getf x ':slot)))
+                              (:b `(:b ,(getf x ':time)))
+                              (:c `(:c ,(getf x ':time)))))
                           (reverse (logger-entries *logger*)))
                   '((:C 0) (:A 0 2)
                     (:B 1) (:C 1) (:A 1 4) 

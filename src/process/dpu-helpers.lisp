@@ -16,7 +16,7 @@
 (define-dpu-flet register ()
   "Adds logging functionality to REGISTER."
   (initialize-and-return ((channel (register)))
-    (log-entry :entry-type 'register
+    (log-entry :entry-type ':register
                :new-channel (public-address channel))))
 
 (define-dpu-flet send-message (destination payload)
@@ -28,7 +28,7 @@
                   ':origin (type-of process-name)
                   ':destination-count 1
                   ':message (type-of payload))))
-    (log-entry :entry-type 'send-message
+    (log-entry :entry-type ':send-message
                :destination destination
                :payload (copy-structure payload))))
 
@@ -46,7 +46,7 @@
                   ':origin (type-of process-name)
                   ':destination-count (length destinations)
                   ':message (type-of (funcall payload-constructor)))))
-    (log-entry :entry-type 'send-message-batch
+    (log-entry :entry-type ':send-message-batch
                :destinations destinations
                :payload-constructor payload-constructor
                :replies? replies?)))
@@ -91,7 +91,7 @@ IMPORTANT WARNING: `SYNC-RECEIVE' returns after it finishes executing its body. 
 NOTE: `MESSAGE-RTS' replies must be explicitly handled.  Otherwise, the default behavior is to throw an error, which can be seen in the definition of `RECEIVE-MESSAGE'."
   (a:with-gensyms (retval sr-done? record)
     `(%install-repeat-until
-         ((log-entry :entry-type 'command
+         ((log-entry :entry-type ':command
                      :time (now)
                      :command 'sync-receive
                      :next-command (caar (process-command-stack ,process-name))

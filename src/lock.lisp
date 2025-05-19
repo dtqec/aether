@@ -166,8 +166,8 @@
         (with-replies (new-downward-tx-latches :returned? returned? :close? nil)
                       new-downward-rx-latches
           (when (and (not aborting?) returned?)
-            (log-entry :entry-type 'aborting-lock
-                       :reason 'broadcast-lock-returned
+            (log-entry :entry-type ':aborting-lock
+                       :reason ':broadcast-lock-returned
                        :returned? returned?))
           (setf aborting? (or aborting? returned?))
           (loop :for downward-rx-latch :in new-downward-rx-latches
@@ -178,8 +178,8 @@
                        (push downward-rx-latch downward-rx-latches))
                       (t
                        (unregister downward-rx-latch)
-                       (log-entry :entry-type 'aborting-lock
-                                  :reason 'no-downward-tx-latch)
+                       (log-entry :entry-type ':aborting-lock
+                                  :reason ':no-downward-tx-latch)
                        (setf aborting? t))))
           (when upward-tx-latch
             (setf upward-rx-latch (unless aborting? (register)))
@@ -193,7 +193,7 @@
     (when (and upward-rx-latch (not aborting?))
       (sync-receive (upward-rx-latch done-message)
         (message-unlock
-         (log-entry :entry-type 'completed-wait-for
+         (log-entry :entry-type ':completed-wait-for
                     :channel upward-rx-latch)
          (setf done-signal     (message-unlock-result done-message)
                upward-rx-latch (unregister upward-rx-latch)))))))

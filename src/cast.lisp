@@ -52,8 +52,8 @@ WARNING: `RETURN-FROM-CAST' calls `PUSH-BROADCAST-FRAME' as part of the aborting
                                                 :message message
                                                 :targets targets))
                     (push ,broadcast-frame (process-data-stack ,process)))
-                  (return-from-cast (&optional value (reason 'none-provided))
-                    (log-entry :entry-type 'terminating-broadcast
+                  (return-from-cast (&optional value (reason ':none-provided))
+                    (log-entry :entry-type ':terminating-broadcast
                                :reason reason)
                     ;; Push a frame with `:ABORTING?' set to T, so that the
                     ;; pre-pushed `BROADCAST' command is ignored. If we have
@@ -86,7 +86,7 @@ WARNING: `RETURN-FROM-CAST' calls `PUSH-BROADCAST-FRAME' as part of the aborting
              (when reply-channel
                (send-message reply-channel (make-message-rpc-done))))
             (t
-             (log-entry :entry-type 'broadcasting
+             (log-entry :entry-type ':broadcasting
                         :handle-rts? handle-rts?
                         :message message
                         :targets targets)
@@ -159,8 +159,8 @@ WARNING: `RETURN-FROM-CAST' calls `PUSH-CONVERGECAST-FRAME' as part of the abort
                   (push ,convergecast-frame
                         (process-data-stack ,process))))
            (declare (ignorable #'push-convergecast-frame))
-           (flet ((return-from-cast (&optional value (reason 'none-provided))
-                    (log-entry :entry-type 'terminating-convergecast
+           (flet ((return-from-cast (&optional value (reason ':none-provided))
+                    (log-entry :entry-type ':terminating-convergecast
                                :reason reason)
                     ;; Push a frame with `:ABORTING?' set to T, so that the
                     ;; pre-pushed `CONVERGECAST' command is ignored. If we have
@@ -191,7 +191,7 @@ WARNING: `RETURN-FROM-CAST' calls `PUSH-CONVERGECAST-FRAME' as part of the abort
                (send-message reply-channel
                              (make-message-rpc-done :result input))))
             (t
-             (log-entry :entry-type 'convergecasting
+             (log-entry :entry-type ':convergecasting
                         :func func
                         :input input
                         :message message

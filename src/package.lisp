@@ -45,13 +45,20 @@
   
   ;; logger.lisp
   (:export
-   #:log-entry                          ; FUNCTION
-   #:with-transient-logger              ; MACRO
    #:*logger*                           ; PARAMETER
+   #:logger-entries                     ; ACCESSOR
+   #:log-entry                          ; FUNCTION
    #:reset-logger                       ; FUNCTION
-   #:logger-entries                     ; FUNCTION
+   #:with-transient-logger              ; MACRO
+   #:print-log-entry                    ; GENERIC FUNCTION
    #:print-log                          ; FUNCTION
+   #:message-log                        ; FUNCTION
+   #:message-report                     ; FUNCTION
    #:print-message-report               ; FUNCTION
+   #:trim-log                           ; FUNCTION
+   #:logs-for-process                   ; FUNCTION
+   #:logs-for-address                   ; FUNCTION
+   #:logs-for-channel                   ; FUNCTION
    )
   
   ;; event.lisp
@@ -86,8 +93,9 @@
    #:courier                            ; TYPE
    #:private-key                        ; TYPE
    #:address                            ; TYPE
+   #:address-channel                    ; ACCESSOR
    #:address=                           ; FUNCTION
-   #:hash-address
+   #:hash-address                       ; FUNCTION
    #:make-courier                       ; FUNCTION
    #:courier-processing-clock-rate      ; FUNCTION
    #:with-courier                       ; MACRO

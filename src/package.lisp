@@ -195,4 +195,5 @@
    #:make-convergecast-frame            ; FUNCTION
    #:push-convergecast-frame            ; FUNCTION
    #:define-convergecast-handler        ; MACRO
+   #:define-convergecast-subordinate    ; MACRO
    ))

@@ -200,7 +200,7 @@ This macro mimics DEFINE-CONVERGECAST-HANDLER while setting up this manner of pa
 
        (define-process-upkeep ((,subprocess process-message-emissary))
            (,command ,process ,message)
-         ,@(%convergecast-body process message body)))))
+         ,@(%convergecast-body subprocess message body)))))
 
 (define-process-upkeep ((process process))
     (CONVERGECAST)

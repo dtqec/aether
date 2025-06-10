@@ -20,7 +20,9 @@
     (handler-name
      ((process process-type) (message message-type))
      &body body)
-  "Interrupt-based RPC handlers are expected to emit a reply to the caller.  This macro augments DEFINE-MESSAGE-HANDLER to reply to the caller with the last evaluated form."
+  "Interrupt-based RPC handlers are expected to quickly return control to the main thread of execution, and any maneuvers which take nontrivial simulation time are modeled as commands pushed onto the underlying process's command stack.  However, this is executed serially with whatever the process was doing when it received the interrupt.  It is sometimes more convenient to process the tasks in parallel, which we model by delegating the new task to a newly spawned side-process.
+
+This macro mimics DEFINE-MESSAGE-HANDLER while setting up this manner of parallel execution."
   (a:with-gensyms (command servicer subprocess)
     `(progn
        (define-message-handler ,handler-name

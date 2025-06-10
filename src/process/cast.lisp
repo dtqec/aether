@@ -125,6 +125,45 @@ Where `REPLIES' is assumed to be a `LIST'. Additionally, when `HANDLE-RTS?' is t
   (declare (ignore aborting? handle-rts? func input message targets))
   (error "PUSH-CONVERGECAST-FRAME only available in DEFINE-CONVERGECAST-HANDLER."))
 
+(defun %convergecast-body (process message body)
+  (a:with-gensyms (convergecast-frame reply-channel)
+    `((let ((,convergecast-frame nil)
+            (,message (copy-message ,message))
+            (,reply-channel (message-reply-channel ,message)))
+        (labels ((push-convergecast-frame (&key aborting?
+                                                handle-rts?
+                                                func
+                                                input
+                                                (message ,message)
+                                                targets)
+                   (assert (null ,convergecast-frame) ()
+                           "Cannot push two CONVERGECAST-FRAMEs from one handler.")
+                   (setf ,convergecast-frame
+                         (make-convergecast-frame :aborting? aborting?
+                                                  :handle-rts? handle-rts?
+                                                  :func func
+                                                  :input input
+                                                  :message message
+                                                  :targets targets))
+                   (push ,convergecast-frame
+                         (process-data-stack ,process)))
+                 (return-from-cast (&optional value (reason ':none-provided))
+                   (log-entry :entry-type ':terminating-convergecast
+                              :reason reason)
+                   ;; Push a frame with `:ABORTING?' set to T, so that the
+                   ;; pre-pushed `CONVERGECAST' command is ignored. If we have
+                   ;; already pushed one, just set its `ABORTING?' flag.
+                   (if ,convergecast-frame
+                       (setf (convergecast-frame-aborting? ,convergecast-frame) t)
+                       (push-convergecast-frame :aborting? t))
+                   (when ,reply-channel
+                     (send-message ,reply-channel (make-message-rpc-done
+                                                   :result value)))
+                   (finish-handler)))
+          (declare (ignorable #'push-convergecast-frame #'return-from-cast))
+          (process-continuation ,process `(CONVERGECAST))
+          ,@body)))))
+
 (defmacro define-convergecast-handler (handler-name
                                        ((process process-type)
                                         (message message-type))
@@ -135,46 +174,33 @@ Where `REPLIES' is assumed to be a `LIST'. Additionally, when `HANDLE-RTS?' is t
 2. `RETURN-FROM-CAST', which allows the user to terminate the convergecast operation early by sending up an acknowledgement (optionally specifying its contents) to the original sender of `MESSAGE'. It is recommended that a value is provided when returning from a convergecast, as it will be passed to a function (the function provided to the `CONVERGECAST-FRAME') when received by the original sender.
 
 WARNING: `RETURN-FROM-CAST' calls `PUSH-CONVERGECAST-FRAME' as part of the aborting process. If a frame has already been pushed onto the data stack, we instead alter that frame rather than pushing an additional one (which could have strange consequences). Additionally, it is important to note that `RETURN-FROM-CAST' uses `FINISH-WITH-SCHEDULING' in order to return from the handler early."
-  (a:with-gensyms (convergecast-frame reply-channel)
-    `(define-message-handler ,handler-name
-         ((,process ,process-type) (,message ,message-type))
-       (let ((,convergecast-frame nil)
-             (,message (copy-message message))
-             (,reply-channel (message-reply-channel ,message)))
-         (flet ((push-convergecast-frame (&key aborting?
-                                               handle-rts?
-                                               func
-                                               input
-                                               (message ,message)
-                                               targets)
-                  (assert (null ,convergecast-frame) ()
-                          "Cannot push two CONVERGECAST-FRAMEs from one handler.")
-                  (setf ,convergecast-frame
-                        (make-convergecast-frame :aborting? aborting?
-                                                 :handle-rts? handle-rts?
-                                                 :func func
-                                                 :input input
-                                                 :message message
-                                                 :targets targets))
-                  (push ,convergecast-frame
-                        (process-data-stack ,process))))
-           (declare (ignorable #'push-convergecast-frame))
-           (flet ((return-from-cast (&optional value (reason ':none-provided))
-                    (log-entry :entry-type ':terminating-convergecast
-                               :reason reason)
-                    ;; Push a frame with `:ABORTING?' set to T, so that the
-                    ;; pre-pushed `CONVERGECAST' command is ignored. If we have
-                    ;; already pushed one, just set its `ABORTING?' flag.
-                    (if ,convergecast-frame
-                        (setf (convergecast-frame-aborting? ,convergecast-frame) t)
-                        (push-convergecast-frame :aborting? t))
-                    (when ,reply-channel
-                      (send-message ,reply-channel (make-message-rpc-done
-                                                    :result value)))
-                    (finish-handler)))
-             (declare (ignorable #'return-from-cast))
-             (process-continuation ,process `(CONVERGECAST))
-             ,@body))))))
+  `(define-message-handler ,handler-name
+       ((,process ,process-type) (,message ,message-type))
+     ,@(%convergecast-body process message body)))
+
+;; cf. define-message-subordinate
+(defmacro define-convergecast-subordinate
+    (handler-name
+     ((process process-type)
+      (message message-type))
+     &body body)
+  "Interrupt-based RPC handlers are expected to quickly return control to the main thread of execution, and any maneuvers which take nontrivial simulation time are modeled as commands pushed onto the underlying process's command stack.  However, this is executed serially with whatever the process was doing when it received the interrupt.  It is sometimes more convenient to process the tasks in parallel, which we model by delegating the new task to a newly spawned side-process.
+
+This macro mimics DEFINE-CONVERGECAST-HANDLER while setting up this manner of parallel execution."
+  (a:with-gensyms (command servicer subprocess)
+    `(progn
+       (define-message-handler ,handler-name
+           ((,process ,process-type) (,message ,message-type))
+         (let ((,servicer (spawn-process 'process-message-emissary)))
+           (schedule ,servicer (now))
+           (setf (process-command-stack ,servicer) (list (list ',command ,process ,message))
+                 (process-clock-rate ,servicer)    (process-clock-rate ,process)
+                 (process-debug? ,servicer)        (process-debug? ,process))
+           (values)))
+
+       (define-process-upkeep ((,subprocess process-message-emissary))
+           (,command ,process ,message)
+         ,@(%convergecast-body subprocess message body)))))
 
 (define-process-upkeep ((process process))
     (CONVERGECAST)

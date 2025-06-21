@@ -35,7 +35,7 @@
 (defun q-deq-first (q pred)
   "Dequeue the first message in `Q' that satisfies `PRED'."
   (declare (optimize (speed 3) (safety 0)))
-  (declare (pred ftype))
+  (check-type pred function)
   (labels ((aux (q pred)
              (cond
                ((eq (cdar q) (cdr q))

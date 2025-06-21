@@ -207,7 +207,7 @@ NOTES:
                   (values (progn ,@clause-body)
                           t)))))
       `(block ,block-name
-         (policy-cond
+         (policy-cond:policy-cond
           ((= 3 safety)
            (check-key-secret ,address)))
          (let ((,q-deq-fn (if ,peruse-inbox? #'q-deq-first #'q-deq-when)))

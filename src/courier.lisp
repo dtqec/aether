@@ -207,7 +207,11 @@ NOTES:
                   (values (progn ,@clause-body)
                           t)))))
       `(block ,block-name
-         (check-key-secret ,address)
+         (policy-cond:policy-cond
+          ((= 3 safety)
+            (check-key-secret ,address))
+          ((> 3 safety)
+            nil))
          (let ((,q-deq-fn (if ,peruse-inbox? #'q-deq-first #'q-deq-when)))
            (multiple-value-bind (,inbox ,found?)
                (gethash (address-channel ,address)

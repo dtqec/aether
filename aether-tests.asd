@@ -24,6 +24,7 @@
                (:file "process-tree")
                (:file "cast")
                (:file "recursive-lock")
+               (:file "logger")
                (:module "examples"
                 :serial t
                 :components ((:file "coloring")

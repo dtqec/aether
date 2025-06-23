@@ -68,10 +68,10 @@
           (getf entry ':destination)
           (getf entry ':payload)))
 
-(defun print-log (&optional (entries (reverse (logger-entries *logger*)))
+(defun print-log (&optional (entries (logger-entries *logger*))
                             (stream *standard-output*))
   "Iterate through the entries in `LOGGER' in reverse order and print them using `PRINT-LOG-ENTRY' which can be specialized on `SOURCE' and `ENTRY-TYPE'."
-  (dolist (entry entries)
+  (dolist (entry (reverse entries))
     (print-log-entry entry
                      (getf entry ':source)
                      (getf entry ':entry-type)
@@ -82,7 +82,7 @@
 (defun message-log (&optional (logger *logger*))
   "Given a `LOGGER', filter it so that it only contains `SEND-MESSAGE' entries. Re-sends are not included."
   (let (entries message-ids)
-    (dolist (entry (reverse (logger-entries logger)) (reverse entries))
+    (dolist (entry (logger-entries logger) (reverse entries))
       (when (eql ':send-message (getf entry ':entry-type))
         (with-slots (message-id) (getf entry ':payload)
           (when (not (member message-id message-ids))
@@ -91,11 +91,10 @@
 
 (defun message-report (message-log-entries)
   "Given a `MESSAGE-LOG', which is a LIST of log entries filtered such that they only contain message-related logs, build an ALIST of the different types of sent messages it contains, and a count for each."
-  (let (message-counts)
+  (initialize-and-return (message-counts)
     (dolist (entry message-log-entries)
       (let ((payload-type (type-of (getf entry ':payload))))
-        (incf (cdr (assoc-default payload-type message-counts 0)))))
-    message-counts))
+        (incf (cdr (assoc-default payload-type message-counts 0)))))))
 
 (defun print-message-report (&optional (logger *logger*))
   "Print a report of the different types of messages sent in `LOGGER', and a count for each. Calls `MESSAGE-LOG' and `MESSAGE-REPORT'."
@@ -109,7 +108,7 @@
 (defun trim-log (&optional (logger *logger*) (start-time 0) (end-time most-positive-fixnum))
   "Trims log messages in `LOGGER' to only ones in between `START-TIME' and `END-TIME'."
   (let (entries)
-    (dolist (entry (reverse (logger-entries logger)) (reverse entries))
+    (dolist (entry (logger-entries logger) (reverse entries))
       (when (and (<= start-time (getf entry ':time))
                  (>= end-time (getf entry ':time)))
         (push entry entries)))))
@@ -117,21 +116,21 @@
 (defun logs-for-process (process &optional (logger *logger*))
   "Trims log messages to only ones produced by `PROCESS'."
   (let (entries)
-    (dolist (entry (reverse (logger-entries logger)) (reverse entries))
+    (dolist (entry (logger-entries logger) (reverse entries))
       (when (eql (getf entry ':source) process)
         (push entry entries)))))
 
 (defun logs-for-address (address &optional (logger *logger*))
   "Trims log messages to only ones produced by the process at public address `ADDRESS'."
   (let (entries)
-    (dolist (entry (reverse (logger-entries logger)) (reverse entries))
+    (dolist (entry (logger-entries logger) (reverse entries))
       (when (address= (process-public-address (getf entry ':source)) address)
         (push entry entries)))))
 
 (defun logs-for-channel (channel &optional (logger *logger*))
   "Trims log messages to only ones produced by the process with public address channel `CHANNEL'."
   (let (entries)
-    (dolist (entry (reverse (logger-entries logger)) (reverse entries))
+    (dolist (entry (logger-entries logger) (reverse entries))
       (when (eql (address-channel (process-public-address (getf entry ':source)))
                  channel)
         (push entry entries)))))

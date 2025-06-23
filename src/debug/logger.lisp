@@ -79,15 +79,15 @@
 
 ;;; filtering mechanisms
 
-(defun message-log (&optional (logger *logger*))
-  "Given a `LOGGER', filter it so that it only contains `SEND-MESSAGE' entries. Re-sends are not included."
-  (let (entries message-ids)
-    (dolist (entry (logger-entries logger) (reverse entries))
+(defun message-log (&optional (entries (logger-entries *logger*)))
+  "Given a LIST of logger `ENTRIES', filter it so that it only contains `SEND-MESSAGE' entries. Re-sends are not included."
+  (let (trimmed-entries message-ids)
+    (dolist (entry entries (reverse trimmed-entries))
       (when (eql ':send-message (getf entry ':entry-type))
         (with-slots (message-id) (getf entry ':payload)
           (when (not (member message-id message-ids))
             (push message-id message-ids)
-            (push entry entries)))))))
+            (push entry trimmed-entries)))))))
 
 (defun message-report (message-log-entries)
   "Given a `MESSAGE-LOG', which is a LIST of log entries filtered such that they only contain message-related logs, build an ALIST of the different types of sent messages it contains, and a count for each."
@@ -96,41 +96,43 @@
       (let ((payload-type (type-of (getf entry ':payload))))
         (incf (cdr (assoc-default payload-type message-counts 0)))))))
 
-(defun print-message-report (&optional (logger *logger*))
-  "Print a report of the different types of messages sent in `LOGGER', and a count for each. Calls `MESSAGE-LOG' and `MESSAGE-REPORT'."
-  (let ((message-counts (message-report (message-log logger)))
+(defun print-message-report (&optional (entries (logger-entries *logger*)))
+  "Print a report of the different types of messages in the given LIST of log `ENTRIES', and a count for each. Calls `MESSAGE-LOG' and `MESSAGE-REPORT'."
+  (let ((message-counts (message-report (message-log entries)))
         (total-count 0))
     (loop :for (message-type . num) :in message-counts
           :do (format t "~%~A: ~A" message-type num)
               (setf total-count (+ num total-count)))
     (format t "~%TOTAL: ~A" total-count)))
 
-(defun trim-log (&optional (logger *logger*) (start-time 0) (end-time most-positive-fixnum))
-  "Trims log messages in `LOGGER' to only ones in between `START-TIME' and `END-TIME'."
-  (let (entries)
-    (dolist (entry (logger-entries logger) (reverse entries))
+(defun trim-log (&key (entries (logger-entries *logger*))
+                      (start-time 0)
+                      (end-time most-positive-fixnum))
+  "Trims log messages in the given LIST of log `ENTRIES' to only ones in between `START-TIME' and `END-TIME'."
+  (let (trimmed-entries)
+    (dolist (entry entries (reverse trimmed-entries))
       (when (and (<= start-time (getf entry ':time))
                  (>= end-time (getf entry ':time)))
-        (push entry entries)))))
+        (push entry trimmed-entries)))))
 
-(defun logs-for-process (process &optional (logger *logger*))
-  "Trims log messages to only ones produced by `PROCESS'."
-  (let (entries)
-    (dolist (entry (logger-entries logger) (reverse entries))
+(defun logs-for-process (process &optional (entries (logger-entries *logger*)))
+  "Trims log `ENTRIES' to only ones produced by `PROCESS'."
+  (let (trimmed-entries)
+    (dolist (entry entries (reverse trimmed-entries))
       (when (eql (getf entry ':source) process)
-        (push entry entries)))))
+        (push entry trimmed-entries)))))
 
-(defun logs-for-address (address &optional (logger *logger*))
-  "Trims log messages to only ones produced by the process at public address `ADDRESS'."
-  (let (entries)
-    (dolist (entry (logger-entries logger) (reverse entries))
+(defun logs-for-address (address &optional (entries (logger-entries *logger*)))
+  "Trims log `ENTRIES' to only ones produced by the process at public address `ADDRESS'."
+  (let (trimmed-entries)
+    (dolist (entry entries (reverse trimmed-entries))
       (when (address= (process-public-address (getf entry ':source)) address)
-        (push entry entries)))))
+        (push entry trimmed-entries)))))
 
-(defun logs-for-channel (channel &optional (logger *logger*))
-  "Trims log messages to only ones produced by the process with public address channel `CHANNEL'."
-  (let (entries)
-    (dolist (entry (logger-entries logger) (reverse entries))
+(defun logs-for-channel (channel &optional (entries (logger-entries *logger*)))
+  "Trims log `ENTRIES' to only ones produced by the process with public address channel `CHANNEL'."
+  (let (trimmed-entries)
+    (dolist (entry entries (reverse trimmed-entries))
       (when (eql (address-channel (process-public-address (getf entry ':source)))
                  channel)
-        (push entry entries)))))
+        (push entry trimmed-entries)))))

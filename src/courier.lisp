@@ -255,10 +255,10 @@ NOTES:
 (defgeneric wake-up (courier)
   (:documentation "If this actor has previously fallen asleep and was removed from the simulation heap, this re-inserts it.  (No action if the actor is already awake.)")
   (:method ((courier courier))
-    (a:when-let* ((since (courier-asleep-since courier))
-                  (next-tick (+ since
-                                (/ (ceiling (- (now) since)
-                                            (/ (courier-processing-clock-rate courier)))
-                                   (courier-processing-clock-rate courier)))))
-      (setf (courier-asleep-since courier) nil)
-      (schedule courier next-tick))))
+    (a:when-let ((since (courier-asleep-since courier)))
+      (let ((next-tick (+ since
+                          (/ (ceiling (- (now) since)
+                                      (/ (courier-processing-clock-rate courier)))
+                             (courier-processing-clock-rate courier)))))
+        (setf (courier-asleep-since courier) nil)
+        (schedule courier next-tick)))))

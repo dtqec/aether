@@ -363,11 +363,11 @@ Locally enables the use of the function PROCESS-DIE and the special form SYNC-RE
            (schedule process (+ (now) (/ process-clock-rate)))))))))
 
 (defmethod wake-up ((process process))
-  (a:when-let* ((since (process-asleep-since process))
-                (next-tick (+ since
-                              (/ (1+ (floor (- (now) since)
-                                            (/ (process-clock-rate process))))
-                                 (process-clock-rate process)))))
-    (assert (<= (now) next-tick))
-    (setf (process-asleep-since process) nil)
-    (schedule process next-tick)))
+  (a:when-let ((since (process-asleep-since process)))
+    (let ((next-tick (+ since
+                        (/ (1+ (floor (- (now) since)
+                                      (/ (process-clock-rate process))))
+                           (process-clock-rate process)))))
+      (assert (<= (now) next-tick))
+      (setf (process-asleep-since process) nil)
+      (schedule process next-tick))))

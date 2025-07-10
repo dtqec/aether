@@ -23,8 +23,9 @@
   q)
 
 (defun q-deq (q)
-  (values (if (q-empty q) nil (pop (cdar q)))
-          q))
+  (let ((nonempty? (not (q-empty q))))
+    (values (and nonempty? (pop (cdar q)))
+            nonempty?)))
 
 (defun q-peek (q)
   (if (q-empty q) nil (cadar q)))

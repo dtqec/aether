@@ -39,7 +39,7 @@
 CONTENTS: The set of EVENTs.  This field is not for direct access; instead, add events using SIMULATION-ADD-EVENT.
 
 HORIZON: The timestamp before which all events have been simulated.  Ensures that a SIMULATION has a fixed history."
-  (contents nil :type list)
+  (contents (make-cheap-heap) :type cheap-heap)
   (horizon  0   :type (real 0)))
 
 (defun make-simulation ()

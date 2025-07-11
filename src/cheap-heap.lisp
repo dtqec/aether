@@ -46,7 +46,7 @@
       (when nonempty?
         (return-from cheap-heap-dequeue value)))
     ;; top queue in heap is empty
-    (remhash (cdar queues) hash)
+    (remhash (caadr queues) hash)
     (setf (cdr queues) (cddr queues))
     (cheap-heap-dequeue heap)))
 

@@ -146,16 +146,16 @@
 
 (defun print-log (&key (entries (logger-entries *logger*))
                        (stream *standard-output*)
-                       (start-time nil start-time-p)
-                       (end-time nil end-time-p)
-                       (log-level nil log-level-p))
+                       (start-time nil)
+                       (end-time nil)
+                       (log-level nil))
   "Iterate through the entries in `LOGGER' in reverse order and print them to `STREAM' using `PRINT-LOG-ENTRY', which can be specialized on `SOURCE' and `ENTRY-TYPE'. For convenience, the `START-TIME', `END-TIME', and `LOG-LEVEL' keywords can be used to trim the log entries before printing."
   (let ((entries-to-print (copy-list entries)))
-    (when start-time-p
+    (when start-time
       (setf entries-to-print (trim-log :entries entries-to-print :start-time start-time)))
-    (when end-time-p
+    (when end-time
       (setf entries-to-print (trim-log :entries entries-to-print :end-time end-time)))
-    (when log-level-p
+    (when log-level
       (setf entries-to-print (logs-from-level log-level entries-to-print)))
     (dolist (entry (reverse entries-to-print))
       (print-log-entry entry

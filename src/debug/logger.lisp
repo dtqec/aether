@@ -10,6 +10,10 @@
 (setf (documentation *logger* 'variable)
       "Logging object that captures entries.")
 
+(defparameter *log-level* nil)
+(setf (documentation *log-level* 'variable)
+      "A non-negative INTEGER that describes what level of logging to perform. Entries by default are given a log-level of 0, akin to DEBUG logging. Larger integers are used for logging more critical events.")
+
 (defstruct logger
   (entries nil :type list))
 
@@ -20,10 +24,12 @@
 ;;     automatic 'conversion' routines which do things like, e.g., discard
 ;;     pointers to objects and retain only their public addresses.
 
-(defun log-entry (&rest initargs &key (logger *logger*) source time entry-type &allow-other-keys)
+(defun log-entry (&rest initargs
+                  &key (logger *logger*) (log-level 0) source time entry-type
+                  &allow-other-keys)
   "Injects a log entry."
   (declare (ignore source entry-type time))
-  (when logger
+  (when (and logger *log-level* (>= log-level *log-level*))
     (let ((keys (copy-seq initargs)))
       (remf keys ':logger)
       (push keys (logger-entries logger))
@@ -34,9 +40,10 @@
   (when logger
     (setf (logger-entries logger) nil)))
 
-(defmacro with-transient-logger (() &body body)
-  "Initialize a fresh logger. Returns log contents on close."
-  `(let ((*logger* (make-logger)))
+(defmacro with-transient-logger ((&key (log-level 0)) &body body)
+  "Initialize a fresh logger with the given `LOG-LEVEL'. Returns log contents on close."
+  `(let ((*logger* (make-logger))
+         (*log-level* ,log-level))
      (reset-logger)
      ,@body
      *logger*))
@@ -68,15 +75,6 @@
           (getf entry ':destination)
           (getf entry ':payload)))
 
-(defun print-log (&optional (entries (logger-entries *logger*))
-                            (stream *standard-output*))
-  "Iterate through the entries in `LOGGER' in reverse order and print them using `PRINT-LOG-ENTRY' which can be specialized on `SOURCE' and `ENTRY-TYPE'."
-  (dolist (entry (reverse entries))
-    (print-log-entry entry
-                     (getf entry ':source)
-                     (getf entry ':entry-type)
-                     stream)))
-
 ;;; filtering mechanisms
 
 (defun message-log (&optional (entries (logger-entries *logger*)))
@@ -95,15 +93,6 @@
     (dolist (entry message-log-entries)
       (let ((payload-type (type-of (getf entry ':payload))))
         (incf (cdr (assoc-default payload-type message-counts 0)))))))
-
-(defun print-message-report (&optional (entries (logger-entries *logger*)))
-  "Print a report of the different types of messages in the given LIST of log `ENTRIES', and a count for each. Calls `MESSAGE-LOG' and `MESSAGE-REPORT'."
-  (let ((message-counts (message-report (message-log entries)))
-        (total-count 0))
-    (loop :for (message-type . num) :in message-counts
-          :do (format t "~%~A: ~A" message-type num)
-              (setf total-count (+ num total-count)))
-    (format t "~%TOTAL: ~A" total-count)))
 
 (defun trim-log (&key (entries (logger-entries *logger*))
                       (start-time 0)
@@ -136,3 +125,40 @@
       (when (eql (address-channel (process-public-address (getf entry ':source)))
                  channel)
         (push entry trimmed-entries)))))
+
+(defun logs-from-level (log-level &optional (entries (logger-entries *logger*)))
+  "Trims log `ENTRIES' to only ones with a log-level >= `LOG-LEVEL'."
+  (let (trimmed-entries)
+    (dolist (entry entries (reverse trimmed-entries))
+      (when (>= (getf entry ':log-level) log-level)
+        (push entry trimmed-entries)))))
+
+;; printer functions
+
+(defun print-message-report (&optional (entries (logger-entries *logger*)))
+  "Print a report of the different types of messages in the given LIST of log `ENTRIES', and a count for each. Calls `MESSAGE-LOG' and `MESSAGE-REPORT'."
+  (let ((message-counts (message-report (message-log entries)))
+        (total-count 0))
+    (loop :for (message-type . num) :in message-counts
+          :do (format t "~%~A: ~A" message-type num)
+              (setf total-count (+ num total-count)))
+    (format t "~%TOTAL: ~A" total-count)))
+
+(defun print-log (&key (entries (logger-entries *logger*))
+                       (stream *standard-output*)
+                       (start-time nil start-time-p)
+                       (end-time nil end-time-p)
+                       (log-level nil log-level-p))
+  "Iterate through the entries in `LOGGER' in reverse order and print them to `STREAM' using `PRINT-LOG-ENTRY', which can be specialized on `SOURCE' and `ENTRY-TYPE'. For convenience, the `START-TIME', `END-TIME', and `LOG-LEVEL' keywords can be used to trim the log entries before printing."
+  (let ((entries-to-print (copy-list entries)))
+    (when start-time-p
+      (setf entries-to-print (trim-log :entries entries-to-print :start-time start-time)))
+    (when end-time-p
+      (setf entries-to-print (trim-log :entries entries-to-print :end-time end-time)))
+    (when log-level-p
+      (setf entries-to-print (logs-from-level log-level entries-to-print)))
+    (dolist (entry (reverse entries-to-print))
+      (print-log-entry entry
+                       (getf entry ':source)
+                       (getf entry ':entry-type)
+                       stream))))

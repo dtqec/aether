@@ -46,6 +46,7 @@
   ;; logger.lisp
   (:export
    #:*logger*                           ; PARAMETER
+   #:*log-level*                        ; PARAMETER
    #:logger-entries                     ; ACCESSOR
    #:log-entry                          ; FUNCTION
    #:reset-logger                       ; FUNCTION
@@ -59,6 +60,7 @@
    #:logs-for-process                   ; FUNCTION
    #:logs-for-address                   ; FUNCTION
    #:logs-for-channel                   ; FUNCTION
+   #:logs-from-level                    ; FUNCTION
    )
   
   ;; event.lisp

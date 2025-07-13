@@ -10,7 +10,7 @@
 (setf (documentation *logger* 'variable)
       "Logging object that captures entries.")
 
-(defparameter *log-level* nil)
+(defparameter *log-level* 0)
 (setf (documentation *log-level* 'variable)
       "A non-negative INTEGER that describes what level of logging to perform. Entries by default are given a log-level of 0, akin to DEBUG logging. Larger integers are used for logging more critical events.")
 
@@ -29,7 +29,7 @@
                   &allow-other-keys)
   "Injects a log entry."
   (declare (ignore source entry-type time))
-  (when (and logger *log-level* (>= log-level *log-level*))
+  (when (and logger (>= log-level *log-level*))
     (let ((keys (copy-seq initargs)))
       (remf keys ':logger)
       (push keys (logger-entries logger))

@@ -80,18 +80,18 @@
   (with-slots (courier channel secret) address
     (declare (ignore courier))
     ;; check that the caller has privileged access
-    (when (eq secret (gethash channel (courier-secrets *local-courier*)))
-      ;; return lingering messages to sender
-      (loop :until (q-empty (gethash channel (courier-inboxes *local-courier*)))
-            :for message := (q-deq (gethash channel (courier-inboxes *local-courier*)))
-            :for reply-channel := (message-reply-channel message)
-            :when reply-channel
-              :do (send-message reply-channel (make-message-RTS)))
-      ;; expunge the mailbox
-      (remhash channel (courier-secrets *local-courier*))
-      (remhash channel (courier-inboxes *local-courier*))
-      (remhash channel (courier-listeners *local-courier*))
-      (values))))
+    (check-key-secret address)
+    ;; return lingering messages to sender
+    (loop :until (q-empty (gethash channel (courier-inboxes *local-courier*)))
+          :for message := (q-deq (gethash channel (courier-inboxes *local-courier*)))
+          :for reply-channel := (message-reply-channel message)
+          :when reply-channel
+            :do (send-message reply-channel (make-message-RTS)))
+    ;; expunge the mailbox
+    (remhash channel (courier-secrets *local-courier*))
+    (remhash channel (courier-inboxes *local-courier*))
+    (remhash channel (courier-listeners *local-courier*))
+    (values)))
 
 ;;;
 ;;; utility (non-exported) operations on messages / couriers
@@ -120,14 +120,14 @@
                  (courier-id *local-courier*))
           ()
           "ADDRESS must belong to *LOCAL-COURIER*.")
-  (assert (nth-value 1 (gethash (address-channel address) (courier-secrets *local-courier*)))
-          ()
-          "Local ADDRESS is not registered to *LOCAL-COURIER*.")
-  (assert (eql (address-secret address)
-               (gethash (address-channel address)
-                        (courier-secrets *local-courier*)))
-          ()
-          "ADDRESS's secret did not match courier's secret."))
+  (multiple-value-bind (secret exists?)
+      (gethash (address-channel address) (courier-secrets *local-courier*))
+    (assert exists?
+        ()
+        "Local ADDRESS is not registered to *LOCAL-COURIER*.")
+    (assert (eql (address-secret address) secret)
+        ()
+        "ADDRESS's secret did not match courier's secret.")))
 
 (defun deliver-message (processing-courier message)
   "Used to simulate the transmission of a message to the next COURIER."
@@ -167,8 +167,12 @@
   (check-type destinations list)
   (loop :for destination :in destinations
         :for reply-address := (when replies? (register))
+        :for safe-reply-address := (when reply-address
+                                     (let ((safe-reply-address (copy-address reply-address)))
+                                       (setf (address-secret safe-reply-address) nil)
+                                       safe-reply-address))
         :for message := (funcall payload-constructor)
-        :do (setf (message-reply-channel message) reply-address)
+        :do (setf (message-reply-channel message) safe-reply-address)
             (send-message destination message)
         :collect reply-address))
 

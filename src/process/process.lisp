@@ -127,7 +127,8 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
                   (when (process-debug? ,process)
                     (apply #'log-entry
                            (append initargs
-                                   (list :time (now)
+                                   (list :log-level 0
+                                         :time (now)
                                          :source ,process))))))
            (flet ((send-message (destination payload)
                     (log-entry :entry-type ':send-message
@@ -320,7 +321,8 @@ Locally enables the use of the function PROCESS-DIE and the special form SYNC-RE
                       (when (process-debug? ,process-name)
                         (apply #'log-entry
                                (append initargs
-                                       (list :source ,process-name
+                                       (list :log-level 0
+                                             :source ,process-name
                                              :time (now)))))))
                (initialize-and-return ((,active? t))
                  (handler-case

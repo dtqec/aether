@@ -185,7 +185,8 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
                                     :entry-type ':handler-invoked
                                     :source ,node
                                     :message-id (message-message-id ,message)
-                                    :payload-type ',message-type))
+                                    :payload-type ',message-type
+                                    :log-level 0))
                        (return-from %message-dispatch
                          (values
                           (funcall ,receiver ,node ,message)

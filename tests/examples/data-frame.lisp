@@ -118,8 +118,9 @@ This assumes that the return-value has already been set up, contributes the fact
                  (alexandria:maxf max-command-depth (length (process-command-stack server)))
                  (receive-message (listen-address done-message)
                    (message-rpc-done
-                    (return (values (message-rpc-done-result done-message)
-                                    max-data-depth max-command-depth))))))))
+                    (return-from factorial-await
+                      (values (message-rpc-done-result done-message)
+                              max-data-depth max-command-depth))))))))
       ;; try non-tco factorial
       (let ((old-clock clock))
         (multiple-value-bind (result max-data-depth max-command-depth)

@@ -20,6 +20,7 @@
                (:file "cheap-heap")
                (:file "event")
                (:file "network")
+               (:file "courier")
                (:file "process")
                (:file "process-tree")
                (:file "cast")

@@ -106,7 +106,7 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
     (error "Undefined command ~a for server of type ~a."
            command (type-of server))))
 
-(defgeneric %message-dispatch (node)
+(defgeneric %message-dispatch (node message)
   (:documentation "Use DEFINE-MESSAGE-DISPATCH to install methods here."))
 
 (defun finish-handler ()
@@ -157,8 +157,8 @@ NOTES:
   + `PROCESS-PERUSE-INBOX?' is passed along to `RECEIVE-MESSAGE', where it determines how we search for a message to handle.
 
 WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you will probably stall the underlying `PROCESS' if you perform some waiting action here, like the analogue of a `SYNC-RECEIVE'."
-  (a:with-gensyms (node message results trapped?)
-    `(defmethod %message-dispatch ((,node ,node-type))
+  (a:with-gensyms (node message)
+    `(defmethod %message-dispatch ((,node ,node-type) ,message)
        ,@(mapcar
           (lambda (clause)
             (cond
@@ -166,53 +166,50 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
                     (= 1 (length clause))
                     (symbolp (first clause))
                     (string= "CALL-NEXT-METHOD" (symbol-name (first clause))))
-               `(multiple-value-bind (,results ,trapped?) (call-next-method)
-                  (when ,trapped?
-                    (return-from %message-dispatch (values ,results ,trapped?)))))
+               `(when (call-next-method)
+                  (return-from %message-dispatch t)))
               ((and (listp clause)
                     (member (length clause) '(2 3)))
                (destructuring-bind (message-type receiver . rest) clause
-                 `(when (let ((,node-type ,node))
-                          (declare (ignorable ,node-type))
-                          ,(or (first rest) t))
-                    (receive-message ((process-key ,node) ,message
-                                      :catch-RTS? nil
-                                      :peruse-inbox? (process-peruse-inbox?
-                                                      ,node))
-                      (,message-type
-                       (when (process-debug? ,node)
-                         (log-entry :time (now)
-                                    :entry-type ':handler-invoked
-                                    :source ,node
-                                    :message-id (message-message-id ,message)
-                                    :payload-type ',message-type
-                                    :log-level 0))
-                       (return-from %message-dispatch
-                         (values
-                          (funcall ,receiver ,node ,message)
-                          t)))))))
+                 `(when (and
+                         (typep ,message ',message-type)
+                         (let ((,node-type ,node))
+                           (declare (ignorable ,node-type))
+                           ,(or (first rest) t)))
+                    (when (process-debug? ,node)
+                      (log-entry :time (now)
+                                 :entry-type ':handler-invoked
+                                 :source ,node
+                                 :message-id (message-message-id ,message)
+                                 :payload-type ',message-type
+                                 :log-level 0))
+                    (funcall ,receiver ,node ,message)
+                    (return-from %message-dispatch t))))
               (t
                (error "Bad DEFINE-MESSAGE-DISPATCH clause: ~a" clause))))
           clauses))))
 
 (defun message-dispatch (node)
-  "Use DEFINE-MESSAGE-DISPATCH to install methods here."
-  (multiple-value-bind (results trapped?) (%message-dispatch node)
-    (declare (ignore results))
-    (when trapped?
-      (return-from message-dispatch t)))
-  (receive-message ((process-key node) message
-                    :catch-RTS? nil ; we do this ourselves so we can log-entry
-                    :peruse-inbox? (process-peruse-inbox? node))
-    (message-RTS
-     (when (process-debug? node)
-       (log-entry :time (now)
+  "Use DEFINE-MESSAGE-DISPATCH to install methods here."  
+  (let* ((address (process-public-address node))
+         (inbox (gethash (address-channel address)
+                         (courier-inboxes *local-courier*))))
+    (policy-cond:policy-cond
+      ((= 3 safety) (check-key-secret address))
+      ((> 3 safety) nil))
+    (doq (message inbox)
+      (when (%message-dispatch node message)
+        (q-deq-first inbox (lambda (x) (eq x message)))
+        (return-from message-dispatch t))
+      (when (and (process-debug? node)
+                 (typep message 'message-RTS))
+        (log-entry :time (now)
                   :entry-type ':handler-invoked
                   :source node
                   :message-id (message-message-id message)
-                  :payload-type (type-of message)))
-     (return-from message-dispatch
-       (values (funcall 'handle-message-RTS node message) t)))))
+                  :payload-type (type-of message))
+        (handle-message-RTS node message)
+        (return-from message-dispatch t)))))
 
 ;; TODO: DEFINE-DPU-MACRO and DEFINE-DPU-FLET don't check syntactic sanity at
 ;;       their runtime, they wait for DEFINE-PROCESS-UPKEEP to discover it.

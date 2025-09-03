@@ -68,3 +68,14 @@
 (defun q-push (q el)
   (push el (cdar q))
   q)
+
+(defmacro doq ((var q &optional return-form) &body body)
+  (a:with-gensyms (sigil rest)
+    (a:once-only ((q q))
+      `(block nil
+         (let ((,sigil (cdr ,q)))
+           (loop :for ,var :in (cdar ,q)
+                 :for ,rest :on (cdar ,q)
+                 :when (eq ,rest ,sigil)
+                   :return ,return-form
+                 :do ,@body))))))

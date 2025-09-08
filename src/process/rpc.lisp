@@ -41,7 +41,20 @@ If `RETURNED?' is supplied and this call generates a `MESSAGE-RTS' reply, then `
          (sync-receive (,listen-channel ,message-place)
            ,@(unless (null returned?)
                `((message-RTS
-                  (setf ,returned? t))))
+                  ,(etypecase result-place-or-list
+                     (symbol
+                      `(let ((,result-place-or-list nil))
+                         ,@decls
+                         (declare (ignorable ,result-place-or-list))
+                         (unregister ,listen-channel)
+                         (setf ,returned? t)
+                         ,@body))
+                     (list
+                      `(destructuring-bind ,result-place-or-list (list ,@(mapcar (constantly nil) result-place-or-list))
+                         ,@decls
+                         (unregister ,listen-channel)
+                         (setf ,returned? t)
+                         ,@body))))))
            (,message-type
             ,(etypecase result-place-or-list
                (symbol

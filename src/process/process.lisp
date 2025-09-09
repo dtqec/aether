@@ -154,9 +154,8 @@ There is one exception: (CALL-NEXT-METHOD) is also a legal clause, and it refere
 NOTES:
   + If no clause is matched, execution proceeds to the semantics specified by `DEFINE-PROCESS-UPKEEP'.
   + Automatically appends a `MESSAGE-RTS' clause which calls `HANDLE-MESSAGE-RTS' and results in an error. Because of this, we set `CATCH-RTS?' to NIL when processing clauses and building `RECEIVE-MESSAGE' blocks. Otherwise, it would be impossible to override the default handling of `MESSAGE-RTS'es.  Additionally, this extra handler is _not_ inherited through (CALL-NEXT-METHOD).
-  + `PROCESS-PERUSE-INBOX?' is passed along to `RECEIVE-MESSAGE', where it determines how we search for a message to handle.
 
-WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you will probably stall the underlying `PROCESS' if you perform some waiting action here, like the analogue of a `SYNC-RECEIVE'."
+WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you will probably stall the underlying `PROCESS' if you perform some waiting action here, like the analogue of a `SYNC-RECEIVE'.  See DEFINE-MESSAGE-SUBORDINATE for a workaround."
   (a:with-gensyms (node message)
     `(defmethod %message-dispatch ((,node ,node-type) ,message)
        ,@(mapcar
@@ -299,7 +298,7 @@ NOTE: LOG-ENTRY is treated separately."
 
 PROCESS is COMMAND is a KEYWORD, and COMMAND-ARGS is a DESTRUCTURING-BIND-LAMBDA-LIST.
 
-Locally enables the use of the function PROCESS-DIE and the special form SYNC-RECEIVE."
+Locally enables the use of the various functions and macro forms defined in dpu-helpers.lisp ."
   (check-type command symbol)
   (multiple-value-bind (body decls docstring) (a:parse-body body :documentation t)
     (a:with-gensyms (command-place argument-list active?)

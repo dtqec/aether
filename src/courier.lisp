@@ -186,9 +186,9 @@
                            &body clauses)
   "Peruses the mailbox at `ADDRESS' for a `MESSAGE' which matches one of the provided `CLAUSES'.  Each clause has the form (MESSAGE-TYPE &BODY BODY).  Clauses are processed according to the following Erlang-ian rules:
 
-  + Each clause is processed in the order supplied.
-  + If a clause is matched, no further clauses are processed.
-  + If a waiting message of the appropriate type is found, it is bound to `MESSAGE' and `BODY' is processed.
+  + Each message is processed in the order received.
+  + For each message, each clause is processed in the order supplied.
+  + If a clause is matched, no further clauses or messages are processed.  In this case, the matching message is bound to `MESSAGE' and that clause's `BODY' is executed.
 
 NOTES:
 
@@ -196,7 +196,9 @@ NOTES:
 
   Permits a clause with head `OTHERWISE' which is executed when no such waiting message is found.
 
-  Returns as a secondary value whether a message was processed.  (An `OTHERWISE' clause also results in a secondary value of NIL.)"
+  Returns as a secondary value whether a message was processed.  (An `OTHERWISE' clause also results in a secondary value of NIL.)
+
+  Defines an implicit NIL block from which the user can RETURN."
   (assert (zerop timeout) () "Blocking RECEIVE-MESSAGE not currently supported.  Consider SYNC-RECEIVE for PROCESS instances.")
   (when catch-RTS?
     (setf clauses (append clauses `((message-RTS (error "Got an RTS."))))))

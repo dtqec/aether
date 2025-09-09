@@ -70,6 +70,7 @@
   q)
 
 (defmacro doq ((var q &optional return-form) &body body)
+  "Like DOLIST, but for queues."
   (a:with-gensyms (sigil rest)
     (a:once-only ((q q))
       `(block nil

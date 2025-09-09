@@ -97,6 +97,8 @@ NOTE: `MESSAGE-RTS' replies must be explicitly handled.  Otherwise, the default 
                      :next-command (caar (process-command-stack ,process-name))
                      :sync-channel ,sync-channel)
            (multiple-value-bind (,retval ,sr-done?)
+               ;; NOTE: this is implemented inefficiently.  we could maintain an end-of-queue
+               ;;       pointer across successive unsuccessful receive attempts.
                (receive-message (,sync-channel ,sync-message-place)
                  ,@(loop :for (clause-head . clause-body) :in sync-clauses
                          :collect `(,clause-head

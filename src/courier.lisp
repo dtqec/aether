@@ -182,15 +182,13 @@
                             &key
                               (timeout 0)
                               (catch-RTS? t)
-                              (peruse-inbox? t)
                             &allow-other-keys)
                            &body clauses)
   "Peruses the mailbox at `ADDRESS' for a `MESSAGE' which matches one of the provided `CLAUSES'.  Each clause has the form (MESSAGE-TYPE &BODY BODY).  Clauses are processed according to the following Erlang-ian rules:
 
-  + Each clause is processed in the order supplied.
-  + If a clause is matched, no further clauses are processed.
-  + When `PERUSE-INBOX?' is T, each clause (processed in order) searches the whole inbox(in latest-to-most-recent order) for a `MESSAGE-TYPE' match. When NIL, each clause just looks at the first message in the inbox for a `MESSAGE-TYPE' match.
-  + If a waiting message of the appropriate type is found, it is bound to `MESSAGE' and `BODY' is processed.
+  + Each message is processed in the order received.
+  + For each message, each clause is processed in the order supplied.
+  + If a clause is matched, no further clauses or messages are processed.  In this case, the matching message is bound to `MESSAGE' and that clause's `BODY' is executed.
 
 NOTES:
 
@@ -198,37 +196,33 @@ NOTES:
 
   Permits a clause with head `OTHERWISE' which is executed when no such waiting message is found.
 
-  Returns as a secondary value whether a message was processed.  (An `OTHERWISE' clause also results in a secondary value of NIL.)"
+  Returns as a secondary value whether a message was processed.  (An `OTHERWISE' clause also results in a secondary value of NIL.)
+
+  Defines an implicit NIL block from which the user can RETURN."
+  (assert (zerop timeout) () "Blocking RECEIVE-MESSAGE not currently supported.  Consider SYNC-RECEIVE for PROCESS instances.")
   (when catch-RTS?
     (setf clauses (append clauses `((message-RTS (error "Got an RTS."))))))
-  (assert (zerop timeout) () "Blocking RECEIVE-MESSAGE not currently supported.")
-  (a:with-gensyms (block-name inbox found? q-deq-fn)
-    (flet ((process-clause (clause-head clause-body)
-             `(a:when-let ((,message
-                            (funcall ,q-deq-fn ,inbox
-                                     (lambda (m) (typep m ',clause-head)))))
-                (return-from ,block-name
-                  (values (progn ,@clause-body)
-                          t)))))
-      `(block ,block-name
-         (policy-cond:policy-cond
-          ((= 3 safety)
-            (check-key-secret ,address))
-          ((> 3 safety)
-            nil))
-         (let ((,q-deq-fn (if ,peruse-inbox? #'q-deq-first #'q-deq-when)))
-           (multiple-value-bind (,inbox ,found?)
+  (a:with-gensyms (block-name inbox x)
+    (a:once-only (address)
+      `(let ((,inbox
                (gethash (address-channel ,address)
-                        (courier-inboxes *local-courier*))
-             (declare (ignorable ,inbox))
-             (assert ,found? ()
-                     "Address ~a not registered to this courier."
-                     (address-channel ,address))
-             ,@(loop :for (clause-head . clause-body) :in clauses
-                     :unless (eql 'otherwise clause-head)
-                       :collect (process-clause clause-head clause-body))
-             (values (progn ,@(cdr (find 'otherwise clauses :key #'car)))
-                     nil)))))))
+                        (courier-inboxes *local-courier*))))
+         (policy-cond:policy-cond
+           ((= 3 safety)
+            (check-key-secret ,address))
+           ((> 3 safety)
+            nil))
+         (block ,block-name
+           (doq (,message ,inbox)
+             (typecase ,message
+               ,@(loop :for (clause-head . clause-body) :in clauses
+                       :unless (eql 'otherwise clause-head)
+                         :collect `(,clause-head
+                                    (q-deq-first ,inbox (lambda (,x) (typep ,x ',clause-head)))
+                                    (return-from ,block-name
+                                      (values (progn ,@clause-body) t))))))
+           (values (progn ,@(cdr (find 'otherwise clauses :key #'car)))
+                   nil))))))
 
 ;;;
 ;;; event producers for message passing infrastructure

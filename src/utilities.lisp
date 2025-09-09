@@ -166,3 +166,13 @@ WARNING: This routine is based on MAPHASH, which has undefined behavior if the s
        (ccl::atomic-incf ,counter-name)
        #-(or ccl ecl sbcl lispworks)
        (incf ,counter-name))))
+
+(defmacro lax-destructuring-bind (lambda-list value &body body)
+  "Same as DESTRUCTURING-BIND, but permits non-destructuring binds too."
+  (etypecase lambda-list
+    (symbol
+     `(let ((,lambda-list ,value))
+        ,@body))
+    (list
+     `(destructuring-bind ,lambda-list ,value
+        ,@body))))

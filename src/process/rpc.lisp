@@ -32,26 +32,41 @@ Sends `MESSAGE' to `DESTINATION', waits for a reply (of type `MESSAGE-TYPE'), an
 If `RETURNED?' is supplied and this call generates a `MESSAGE-RTS' reply, then `RETURNED?' will be flagged and control resumes.  Otherwise, controlled is interrupted by an error."
   (multiple-value-bind (body decls) (a:parse-body body)
     (a:with-gensyms (listen-channel message-place our-message)
-      `(let* ((,listen-channel (register))
-              (,our-message (copy-structure ,message))
-              ,@(unless (null returned?) `(,returned?)))
-         ,@(unless (null returned?) `((declare (ignorable ,returned?))))
-         (setf (message-reply-channel ,our-message) ,listen-channel)
-         (send-message ,destination ,our-message)
-         (sync-receive (,listen-channel ,message-place)
-           ,@(unless (null returned?)
-               `((message-RTS
-                  (setf ,returned? t))))
-           (,message-type
-            ,(etypecase result-place-or-list
+      (labels
+          ((ignorables ()
+             (etypecase result-place-or-list
                (symbol
-                `(let ((,result-place-or-list (,message-unpacker ,message-place)))
-                   ,@decls
-                   (declare (ignorable ,result-place-or-list))
-                   (unregister ,listen-channel)
-                   ,@body))
+                `((declare (ignorable ,result-place-or-list))))
                (list
-                `(destructuring-bind ,result-place-or-list (,message-unpacker ,message-place)
-                   ,@decls
-                   (unregister ,listen-channel)
-                   ,@body)))))))))
+                `((declare (ignorable ,@result-place-or-list))))))
+           (body (rts)
+             `(,@decls
+               ,@(ignorables)
+               (unregister ,listen-channel)
+               ,@(when returned? `((setf ,returned? ,rts)))
+               ,@body)))
+        `(let* ((,listen-channel (register))
+                (,our-message (copy-structure ,message))
+                ,@(unless (null returned?) `(,returned?)))
+           ,@(unless (null returned?) `((declare (ignorable ,returned?))))
+           (setf (message-reply-channel ,our-message) ,listen-channel)
+           (send-message ,destination ,our-message)
+           (sync-receive (,listen-channel ,message-place)
+             ,@(unless (null returned?)
+                 `((message-RTS
+                    ,(etypecase result-place-or-list
+                       (symbol
+                        `(lax-destructuring-bind
+                             ,result-place-or-list
+                             nil
+                           ,@(body t)))
+                       (list
+                        `(lax-destructuring-bind
+                             ,result-place-or-list
+                             (list ,@(mapcar (constantly nil) result-place-or-list))
+                           ,@(body t)))))))
+             (,message-type
+              (lax-destructuring-bind
+                  ,result-place-or-list
+                  (,message-unpacker ,message-place)
+                ,@(body nil)))))))))

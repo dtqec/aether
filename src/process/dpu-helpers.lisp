@@ -99,7 +99,8 @@ NOTE: `MESSAGE-RTS' replies must be explicitly handled.  Otherwise, the default 
            (multiple-value-bind (,retval ,sr-done?)
                ;; NOTE: this is implemented inefficiently.  we could maintain an end-of-queue
                ;;       pointer across successive unsuccessful receive attempts.
-               (receive-message (,sync-channel ,sync-message-place)
+               (receive-message (,sync-channel ,sync-message-place
+                                 :catch-rts? ,(null (member 'message-rts sync-clauses :key #'car)))
                  ,@(loop :for (clause-head . clause-body) :in sync-clauses
                          :collect `(,clause-head
                                     (a:when-let ((,record (process-debug? ,process-name)))

@@ -54,17 +54,12 @@ If `RETURNED?' is supplied and this call generates a `MESSAGE-RTS' reply, then `
            (sync-receive (,listen-channel ,message-place)
              ,@(unless (null returned?)
                  `((message-RTS
-                    ,(etypecase result-place-or-list
-                       (symbol
-                        `(lax-destructuring-bind
-                             ,result-place-or-list
-                             nil
-                           ,@(body t)))
-                       (list
-                        `(lax-destructuring-bind
-                             ,result-place-or-list
-                             (list ,@(mapcar (constantly nil) result-place-or-list))
-                           ,@(body t)))))))
+                    (lax-destructuring-bind
+                        ,result-place-or-list
+                        ,(etypecase result-place-or-list
+                           (symbol 'nil)
+                           (list `(list ,@(mapcar (constantly nil) result-place-or-list))))
+                      ,@(body t)))))
              (,message-type
               (lax-destructuring-bind
                   ,result-place-or-list

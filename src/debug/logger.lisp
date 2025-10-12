@@ -14,7 +14,8 @@
 (defmacro only-log-when (((entry) &body inner) &body body)
   "Whenver BODY evaluates LOG-ENTRY, INNER is evaluated on the proposed log ENTRY and, if found to be NIL, the entry is skipped."
   (a:with-gensyms (condition)
-    `(flet ((follow-skip () (invoke-restart '%skip-log-entry))
+    `(flet ((follow-skip (,condition)
+              (signal ,condition))
             (decide-skip (,condition)
               (not (let ((,entry (entry ,condition)))
                      ,@inner))))
@@ -57,11 +58,14 @@
   (when logger
     (let ((keys (copy-seq initargs)))
       (remf keys ':logger)
-      (restart-bind ((%skip-log-entry (lambda () (return-from log-entry nil))))
-        (let* ((c (make-condition 'logging-entry :entry initargs))
-               (r (find-restart 'logging-entry c)))
-          (when r (invoke-restart r))
-          (push keys (logger-entries logger))
+      (handler-case
+          (let* ((c (make-condition 'logging-entry :entry initargs))
+                 (r (find-restart 'logging-entry c)))
+            (when r (invoke-restart r c))
+            (push keys (logger-entries logger))
+            (values))
+        (logging-entry (c)
+          (declare (ignore c))
           (values))))))
 
 (defun reset-logger (&optional (logger *logger*))

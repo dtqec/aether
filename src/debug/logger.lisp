@@ -12,7 +12,7 @@
              (format stream "#<TRYING-LOGGING :ENTRY ~a>" (entry condition)))))
 
 (defmacro only-log-when (((entry) &body inner) &body body)
-  ""
+  "Whenver BODY evaluates LOG-ENTRY, INNER is evaluated on the proposed log ENTRY and, if found to be NIL, the entry is skipped."
   (a:with-gensyms (condition)
     `(flet ((follow-skip () (invoke-restart '%skip-log-entry))
             (decide-skip (,condition)

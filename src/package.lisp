@@ -47,6 +47,8 @@
   (:export
    #:*logger*                           ; PARAMETER
    #:*log-level*                        ; PARAMETER
+   #:*log-start-time*                   ; PARAMETER
+   #:*log-end-time*                     ; PARAMETER
    #:logger-entries                     ; ACCESSOR
    #:log-entry                          ; FUNCTION
    #:reset-logger                       ; FUNCTION

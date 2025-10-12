@@ -14,6 +14,14 @@
 (setf (documentation *log-level* 'variable)
       "A non-negative INTEGER that describes what level of logging to perform. Entries by default are given a log-level of 0, akin to DEBUG logging. Larger integers are used for logging more critical events.")
 
+(defparameter *log-start-time* 0)
+(setf (documentation *log-start-time* 'variable)
+      "A non-negative REAL that indicates when to start storing log entries in the logger. By default are this is 0, aka the start of the simulation. But for debugging long simulations this is useful for logging only around the problem area.")
+
+(defparameter *log-end-time* most-positive-fixnum)
+(setf (documentation *log-end-time* 'variable)
+      "A non-negative REAL that indicates when to finish storing log entries in the logger. By default are this is MOST-POSITIVE-FIXNUM, aka always later than the end of the simulation. But for debugging long simulations this is useful for logging only around the problem area.")
+
 (defstruct logger
   (entries nil :type list))
 
@@ -28,8 +36,11 @@
                   &key (logger *logger*) (log-level 0) source time entry-type
                   &allow-other-keys)
   "Injects a log entry."
-  (declare (ignore source entry-type time))
-  (when (and logger (>= log-level *log-level*))
+  (declare (ignore source entry-type))
+  (when (and logger
+             (>= log-level *log-level*)
+             (>= time *log-start-time*)
+             (<= time *log-end-time*))
     (let ((keys (copy-seq initargs)))
       (remf keys ':logger)
       (push keys (logger-entries logger))
@@ -40,10 +51,15 @@
   (when logger
     (setf (logger-entries logger) nil)))
 
-(defmacro with-transient-logger ((&key (log-level 0)) &body body)
-  "Initialize a fresh logger with the given `LOG-LEVEL'. Returns log contents on close."
+(defmacro with-transient-logger ((&key (log-level 0)
+                                       (start-time 0)
+                                       (end-time most-positive-fixnum))
+                                 &body body)
+  "Initialize a fresh logger with the given `LOG-LEVEL', `START-TIME', and `END-TIME'. Returns log contents on close."
   `(let ((*logger* (make-logger))
-         (*log-level* ,log-level))
+         (*log-level* ,log-level)
+         (*log-start-time* ,start-time)
+         (*log-end-time* ,end-time))
      (reset-logger)
      ,@body
      *logger*))

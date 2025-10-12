@@ -200,7 +200,8 @@ NOTES:
 
   Defines an implicit NIL block from which the user can RETURN."
   (assert (zerop timeout) () "Blocking RECEIVE-MESSAGE not currently supported.  Consider SYNC-RECEIVE for PROCESS instances.")
-  (when catch-RTS?
+  (when (and catch-RTS?
+             (not (member 'message-RTS clauses :key #'car)))
     (setf clauses (append clauses `((message-RTS (error "Got an RTS."))))))
   (a:with-gensyms (block-name inbox x)
     (a:once-only (address)

@@ -63,6 +63,7 @@
    #:logs-for-address                   ; FUNCTION
    #:logs-for-channel                   ; FUNCTION
    #:logs-from-level                    ; FUNCTION
+   #:only-log-when                      ; MACRO
    )
   
   ;; event.lisp

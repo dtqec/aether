@@ -51,10 +51,9 @@
 ;;     pointers to objects and retain only their public addresses.
 
 (defun log-entry (&rest initargs
-                  &key (logger *logger*) source time entry-type (log-level 0)
+                  &key (logger *logger*)
                   &allow-other-keys)
   "Injects a log entry."
-  (declare (ignore source entry-type time log-level))
   (when logger
     (let ((keys (copy-seq initargs)))
       (remf keys ':logger)

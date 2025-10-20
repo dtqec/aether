@@ -4,6 +4,24 @@
 
 (in-package #:aether)
 
+;;; conditions mechanism for conditionally skipping log-entry
+
+(define-condition logging-entry ()
+  ((%entry :reader entry :initarg :entry))
+  (:report (lambda (condition stream)
+             (format stream "#<TRYING-LOGGING :ENTRY ~a>" (entry condition)))))
+
+(defmacro only-log-when (((entry) &body inner) &body body)
+  "Whenver BODY evaluates LOG-ENTRY, INNER is evaluated on the proposed log ENTRY and, if found to be NIL, the entry is skipped."
+  (a:with-gensyms (condition)
+    `(flet ((follow-skip (,condition)
+              (signal ,condition))
+            (decide-skip (,condition)
+              (not (let ((,entry (entry ,condition)))
+                     ,@inner))))
+       (restart-bind ((logging-entry #'follow-skip :test-function #'decide-skip))
+         ,@body))))
+
 ;;; core logging definitions
 
 (defparameter *logger* nil)
@@ -33,27 +51,32 @@
 ;;     pointers to objects and retain only their public addresses.
 
 (defun log-entry (&rest initargs
-                  &key (logger *logger*) (log-level 0) source time entry-type
+                  &key (logger *logger*)
                   &allow-other-keys)
   "Injects a log entry."
-  (declare (ignore source entry-type))
-  (when (and logger
-             (>= log-level *log-level*)
-             (>= time *log-start-time*)
-             (<= time *log-end-time*))
+  (when logger
     (let ((keys (copy-seq initargs)))
       (remf keys ':logger)
-      (push keys (logger-entries logger))
-      (values))))
+      (handler-case
+          (let* ((c (make-condition 'logging-entry :entry initargs))
+                 (r (find-restart 'logging-entry c)))
+            (when r (invoke-restart r c))
+            (push keys (logger-entries logger))
+            (values))
+        (logging-entry (c)
+          (declare (ignore c))
+          (values))))))
 
 (defun reset-logger (&optional (logger *logger*))
   "Empties the current logger of all entries."
   (when logger
     (setf (logger-entries logger) nil)))
 
-(defmacro with-transient-logger ((&key (log-level 0)
-                                       (start-time 0)
-                                       (end-time most-positive-fixnum))
+(defmacro with-transient-logger ((&key
+                                    ;; we roll some convenience `only-log-when's into this macro
+                                    (log-level 0)
+                                    (start-time 0)
+                                    (end-time most-positive-fixnum))
                                  &body body)
   "Initialize a fresh logger with the given `LOG-LEVEL', `START-TIME', and `END-TIME'. Returns log contents on close."
   `(let ((*logger* (make-logger))
@@ -61,7 +84,10 @@
          (*log-start-time* ,start-time)
          (*log-end-time* ,end-time))
      (reset-logger)
-     ,@body
+     (only-log-when ((event) (>= *log-level* (getf event ':log-level 0)))
+       (only-log-when ((event) (and (<= *log-start-time* (getf event ':time))
+                                    (>= *log-end-time* (getf event ':time))))
+         ,@body))
      *logger*))
 
 ;;; pretty-printing mechanisms

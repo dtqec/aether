@@ -1,6 +1,6 @@
-;;;; network.lisp
+;;;; network/gridded.lisp
 ;;;;
-;;;; A stock example for a networked family of couriers in a square grid.
+;;;; A stock example for a nearest-neighbor networked family of couriers in a square grid.
 
 (in-package #:aether)
 

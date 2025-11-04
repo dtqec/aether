@@ -5,7 +5,7 @@
 (in-package #:aether)
 
 (defstruct (rectangle)
-  ""
+  "Tracks the domain of a quadtree subrouter."
   (left 0 :type integer)
   (right 0 :type integer)
   (top 0 :type integer)
@@ -33,12 +33,15 @@
   (links nil :type list))
 
 (defun make-courier-quadtree (size-x size-y)
+  "Makes a whole quadtree apparatus stretching from (0, 0) to (size-x - 1, size-y - 1).
+
+Returns a VALUES pair: the 2d array of leaf routers (to use as the local courier for worker processes), then the list of *all* routers (to use to prime the simulator)."
   (let ((rectangle (make-rectangle :left 0 :bottom 0
                                    :right (1- size-x) :top (1- size-y))))
     (make-courier-quadtree-rectangle rectangle nil)))
 
 (defun make-courier-quadtree-rectangle (rectangle parent)
-  ""
+  "Makes one quadtree router and its children."
   (with-slots ((max-x right) (max-y top) (min-x left) (min-y bottom)) rectangle
     (assert (<= min-x max-x))
     (assert (<= min-y max-y))

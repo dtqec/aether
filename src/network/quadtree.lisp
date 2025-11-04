@@ -50,26 +50,47 @@
           ;;       could also handle this as a slot on courier-quadtree, which might be nicer.
           (leaf-courier-array (make-array `(,(1+ (- max-x min-x)) ,(1+ (- max-y min-y)))))
           (flat-courier-list '()))
-      (unless (and (= max-x min-x) (= max-y min-y))
-        (setf subrectangles
-              (list (make-rectangle :right (+ min-x half-width)
-                                    :top (+ min-y half-height)
-                                    :left min-x
-                                    :bottom min-y)
-                    (make-rectangle :right
-                                    (+ min-x half-width)
-                                    :top max-y
-                                    :left min-x
-                                    :bottom (+ 1 min-y half-height))
-                    (make-rectangle :right max-x
-                                    :top (+ min-y half-height)
-                                    :left (+ 1 min-x half-width)
-                                    :bottom min-y)
-                    (make-rectangle :right max-x
-                                    :top max-y
-                                    :left (+ 1 min-x half-width)
-                                    :bottom (+ 1 min-y half-height))))    
-        (setf subrectangles (remove-duplicates subrectangles :test #'equalp)))
+      (cond
+        ((and (= max-x min-x) (= max-y min-y))
+         nil)
+        ((= max-x min-x)
+         (setf subrectangles
+               (list (make-rectangle :right min-x
+                                     :top (+ min-y half-height)
+                                     :left min-x
+                                     :bottom min-y)
+                     (make-rectangle :right min-x
+                                     :top max-y
+                                     :left min-x
+                                     :bottom (+ 1 min-y half-height)))))
+        ((= max-y min-y)
+         (setf subrectangles
+               (list (make-rectangle :right (+ min-x half-width)
+                                     :top min-y
+                                     :left min-x
+                                     :bottom min-y)
+                     (make-rectangle :right max-x
+                                     :top min-y
+                                     :left (+ 1 min-x half-width)
+                                     :bottom min-y))))
+        (t
+         (setf subrectangles
+               (list (make-rectangle :right (+ min-x half-width)
+                                     :top (+ min-y half-height)
+                                     :left min-x
+                                     :bottom min-y)
+                     (make-rectangle :right (+ min-x half-width)
+                                     :top max-y
+                                     :left min-x
+                                     :bottom (+ 1 min-y half-height))
+                     (make-rectangle :right max-x
+                                     :top (+ min-y half-height)
+                                     :left (+ 1 min-x half-width)
+                                     :bottom min-y)
+                     (make-rectangle :right max-x
+                                     :top max-y
+                                     :left (+ 1 min-x half-width)
+                                     :bottom (+ 1 min-y half-height))))))
       
       (dolist (sr subrectangles)
         (with-slots ((submax-x right) (submax-y top) (submin-x left) (submin-y bottom)) sr

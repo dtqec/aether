@@ -29,7 +29,10 @@
                (:file "event")
                (:file "message")
                (:file "courier")
-               (:file "network")
+               (:module "network"
+                :serial t
+                :components ((:file "gridded")
+                             (:file "quadtree")))
                (:module "process"
                 :serial t
                 :components ((:file "process")

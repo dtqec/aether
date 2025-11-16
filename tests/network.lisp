@@ -53,3 +53,38 @@
                     (try-til-exhausted (+ stopping-time time-step)
                                        (max pressure pressure-so-far)))))))
       (try-til-exhausted 0))))
+
+
+(defun compute-routing-time (size-x size-y
+                             &key (courier-constructor #'make-courier-grid)
+                                  (receiver-x 0)
+                                  (receiver-y 0)
+                                  (sender-x nil sender-x-p)
+                                  (sender-y nil sender-y-p)
+                             &aux (sender-x (if sender-x-p sender-x (1- size-x)))
+                                  (sender-y (if sender-y-p sender-y (1- size-y))))
+  "For a leaf-courier grid of `SIZE-X' by `SIZE-Y' and network topology defined by `COURIER-CONSTRUCTOR', compute the amount of time required to send a message from an address bound to the courier at (`SENDER-X', `SENDER-Y') to an address bound to the courier at (`RECEIVER-X', `RECEIVER-Y')."
+  (multiple-value-bind (courier-grid courier-list) (funcall courier-constructor size-x size-y)
+    (with-simulation (simulation ())
+      (dolist (courier courier-list)
+        (simulation-add-event simulation (make-event :callback courier)))
+      (let (receiver message)
+        (let ((*local-courier* (aref courier-grid receiver-x receiver-y)))
+          (setf receiver (register)))
+        (let ((*local-courier* (aref courier-grid sender-x sender-y)))
+          (setf message (make-message))
+          (send-message receiver message))
+        (let ((*local-courier* (aref courier-grid receiver-x receiver-y)))
+          (flet ((canary ()
+                   (receive-message (receiver msg :catch-rts? nil)
+                     (message t))))
+            (simulation-run simulation :canary #'canary)
+            (simulation-horizon simulation)))))))
+
+(deftest test-courier-quadtree ()
+  "When communicating between the extreme bottom-left and top-right couriers, quadtree-based routing time is always less than or equal to grid-based routing time."
+  (dotimes (i 8)
+    (let* ((w (1+ i)) ; width/height are >= 1
+           (t-grid (compute-routing-time w w :courier-constructor #'make-courier-grid))
+           (t-quad (compute-routing-time w w :courier-constructor #'make-courier-quadtree)))
+      (is (<= t-quad t-grid)))))

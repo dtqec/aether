@@ -118,9 +118,10 @@
    #:unregister                         ; FUNCTION
    )
   
-  ;; network.lisp
+  ;; network/
   (:export
    #:make-courier-grid                  ; FUNCTION
+   #:make-courier-quadtree              ; FUNCTION
    )
   
   ;; process/

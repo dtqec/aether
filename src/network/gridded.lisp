@@ -1,6 +1,6 @@
-;;;; network.lisp
+;;;; network/gridded.lisp
 ;;;;
-;;;; A stock example for a networked family of couriers in a square grid.
+;;;; A stock example for a nearest-neighbor networked family of couriers in a square grid.
 
 (in-package #:aether)
 
@@ -40,10 +40,13 @@ NOTE: Expects `ID' to be a list and `NEIGHBORS' to be a `GRID-NEIGHBORS'.")
 
 (defun make-courier-grid (size-i size-j)
   "Constructs a (size-i x size-j) grid of COURIER-GRIDDED instances."
-  (initialize-and-return ((grid (make-array (list size-i size-j))))
+  (initialize-and-return ((courier-list)
+                          (grid (make-array (list size-i size-j))))
     (dotimes (i size-i)
       (dotimes (j size-j)
-        (setf (aref grid i j) (make-courier-gridded :id (list i j)))))
+        (let ((courier (make-courier-gridded :id (list i j))))
+          (setf (aref grid i j) courier)
+          (push courier courier-list))))
     (dotimes (i size-i)
       (dotimes (j size-j)
         (let ((left  (and (<= 0 (1- i))     (aref grid (1- i) j)))

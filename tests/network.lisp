@@ -88,3 +88,20 @@
            (t-grid (compute-routing-time w w :courier-constructor #'make-courier-grid))
            (t-quad (compute-routing-time w w :courier-constructor #'make-courier-quadtree)))
       (is (<= t-quad t-grid)))))
+
+(deftest test-courier-ordinal ()
+  "Check in an example that COURIER-GRID routing takes |x0 - x1| + |y0 - y1| hops, while COURIER-ORDINAL routing takes max(|x0 - x1|, |y0 - y1|) hops."
+  (let ((width 3)
+        (x0 0)
+        (y0 2)
+        (x1 2)
+        (y1 1)
+        (aether::*courier-processing-clock-rate* 1))
+    (is (= (+ (abs (- x0 x1)) (abs (- y0 y1)))
+           (compute-routing-time width width
+                                 :sender-x x0 :sender-y y0 :receiver-x x1 :receiver-y y1
+                                 :courier-constructor #'make-courier-grid)))
+    (is (= (max (abs (- x0 x1)) (abs (- y0 y1)))
+           (compute-routing-time width width
+                                 :sender-x x0 :sender-y y0 :receiver-x x1 :receiver-y y1
+                                 :courier-constructor #'make-courier-ordinal-grid)))))

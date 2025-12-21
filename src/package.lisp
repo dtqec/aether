@@ -122,6 +122,7 @@
   (:export
    #:make-courier-grid                  ; FUNCTION
    #:make-courier-quadtree              ; FUNCTION
+   #:make-courier-ordinal-grid          ; FUNCTION
    )
   
   ;; process/

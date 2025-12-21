@@ -32,7 +32,8 @@
                (:module "network"
                 :serial t
                 :components ((:file "gridded")
-                             (:file "quadtree")))
+                             (:file "quadtree")
+                             (:file "ordinal")))
                (:module "process"
                 :serial t
                 :components ((:file "process")

@@ -1,4 +1,4 @@
-;;;; network/ordinary.lisp
+;;;; network/ordinal.lisp
 ;;;;
 ;;;; A stock example for a diagonal-nearest-neighbor networked family of couriers in a square grid.
 ;;;;

@@ -23,7 +23,8 @@
   (declare (ignore aborting? handle-rts? message targets))
   (error "PUSH-BROADCAST-FRAME only available in DEFINE-BROADCAST-HANDLER."))
 
-(defmacro define-broadcast-handler (((process process-type) (message message-type))
+(defmacro define-broadcast-handler (((process process-type) (message message-type)
+                                     &key (guard nil guard-p))
                                     &body body)
   "This macro augments `DEFINE-MESSAGE-HANDLER', by pushing a `BROADCAST' command onto the `PROCESS's command stack. This command takes no arguments, but expects a `BROADCAST-FRAME' to be on the data stack when it is called. Thus, either the handler must prepare the data frame, or it must be prepared by whatever script is pushed onto the command stack by the handler. Additionally, inside the context of `DEFINE-BROADCAST-HANDLER' we have access to a pair of helper functions:
 
@@ -32,7 +33,8 @@
 
 WARNING: `RETURN-FROM-CAST' calls `PUSH-BROADCAST-FRAME' as part of the aborting process. If a frame has already been pushed onto the data stack, we instead alter that frame rather than pushing an additional one (which could have strange consequences). Additionally, it is important to note that `RETURN-FROM-CAST' uses `FINISH-WITH-SCHEDULING' in order to return from the handler early."
   (a:with-gensyms (broadcast-frame reply-channel)
-    `(define-message-handler ((,process ,process-type) (,message ,message-type))
+    `(define-message-handler ((,process ,process-type) (,message ,message-type)
+                              ,@(when guard-p `(:guard ,guard)))
        (let ((,broadcast-frame nil)
              (,message (copy-message message))
              (,reply-channel (message-reply-channel ,message)))
@@ -163,7 +165,8 @@ Where `REPLIES' is assumed to be a `LIST'. Additionally, when `HANDLE-RTS?' is t
           ,@body)))))
 
 (defmacro define-convergecast-handler (((process process-type)
-                                        (message message-type))
+                                        (message message-type)
+                                        &optional (guard nil guard-p))
                                        &body body)
   "This macro augments `DEFINE-MESSAGE-HANDLER', by pushing a `CONVERGECAST' command onto the `PROCESS's command stack. This command takes no arguments, but expects a `CONVERGECAST-FRAME' to be on the data stack when it is called. Thus, either the handler must prepare the data frame, or it must be prepared by whatever script is pushed onto the command stack by the handler. Additionally, inside the context of `DEFINE-CONVERGECAST-HANDLER' we have access to a pair of helper functions:
 
@@ -171,20 +174,23 @@ Where `REPLIES' is assumed to be a `LIST'. Additionally, when `HANDLE-RTS?' is t
 2. `RETURN-FROM-CAST', which allows the user to terminate the convergecast operation early by sending up an acknowledgement (optionally specifying its contents) to the original sender of `MESSAGE'. It is recommended that a value is provided when returning from a convergecast, as it will be passed to a function (the function provided to the `CONVERGECAST-FRAME') when received by the original sender.
 
 WARNING: `RETURN-FROM-CAST' calls `PUSH-CONVERGECAST-FRAME' as part of the aborting process. If a frame has already been pushed onto the data stack, we instead alter that frame rather than pushing an additional one (which could have strange consequences). Additionally, it is important to note that `RETURN-FROM-CAST' uses `FINISH-WITH-SCHEDULING' in order to return from the handler early."
-  `(define-message-handler ((,process ,process-type) (,message ,message-type))
+  `(define-message-handler ((,process ,process-type) (,message ,message-type)
+                            ,@(when guard-p `(:guard ,guard)))
      ,@(%convergecast-body process message body)))
 
 ;; cf. define-message-subordinate
 (defmacro define-convergecast-subordinate
     (((process process-type)
-      (message message-type))
+      (message message-type)
+      &optional (guard nil guard-p))
      &body body)
   "Interrupt-based RPC handlers are expected to quickly return control to the main thread of execution, and any maneuvers which take nontrivial simulation time are modeled as commands pushed onto the underlying process's command stack.  However, this is executed serially with whatever the process was doing when it received the interrupt.  It is sometimes more convenient to process the tasks in parallel, which we model by delegating the new task to a newly spawned side-process.
 
 This macro mimics DEFINE-CONVERGECAST-HANDLER while setting up this manner of parallel execution."
   (a:with-gensyms (command servicer subprocess)
     `(progn
-       (define-message-handler ((,process ,process-type) (,message ,message-type))
+       (define-message-handler ((,process ,process-type) (,message ,message-type)
+                                ,@(when guard-p `(:guard ,guard)))
          (let ((,servicer (spawn-process 'process-message-emissary)))
            (schedule ,servicer (now))
            (setf (process-command-stack ,servicer) (list (list ',command ,process ,message))

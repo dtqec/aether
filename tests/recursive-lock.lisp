@@ -13,20 +13,15 @@
 (defstruct (message-test-lock (:include message))
   "Demo message type. Supposed to be delayed by an established lock on a process.")
 
-(define-message-handler handle-message-test-lock
-    ((process process-lockable-test) (message message-test-lock))
+(define-message-handler ((process process-lockable-test) (message message-test-lock)
+                         ; don't reply if locked
+                         :guard (not (process-lockable-locked? process)))
   "Records the receipt of a test lock message."
   (push `(,(process-tree-id process) ,(now)) *locking-events*))
 
 (defmethod process-lockable-targets ((process process-lockable-test))
   "See `PROCESS-TREE-CHILDREN' for more information."
   (process-tree-children process))
-
-(define-message-dispatch process-lockable-test
-  (message-lock        'handle-message-lock)
-  (message-test-lock   'handle-message-test-lock
-                       (not (process-lockable-locked? ; don't reply if locked
-                             process-lockable-test))))
 
 (deftest test-process-lockable-successful ()
   "Tests that message processing can be blocked by a recursive lock."

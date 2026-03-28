@@ -33,8 +33,7 @@
   "Requests the computation of n!."
   (n   nil :type (integer 0)))
 
-(define-message-handler handle-message-factorial
-    ((process arithmetic-server) (message message-factorial))
+(define-message-handler ((process arithmetic-server) (message message-factorial))
   "Sets up the computation of n! to service an inbound request."
   (process-continuation process
                         `(FACTORIAL-STEP ,(message-factorial-n message))
@@ -59,8 +58,7 @@ If appropriate, it first calls FACTORIAL-STEP recursively, which sets up a retur
 (defstruct (message-factorial-tco (:include message-factorial))
   "Also a factorial query, handled slightly differently by the server.")
 
-(define-message-handler handle-message-factorial-tco
-    ((process arithmetic-server) (message message-factorial-tco))
+(define-message-handler ((process arithmetic-server) (message message-factorial-tco))
   "Sets up the computation of n! to service an inbound request."
   (process-continuation process
                         `(PUSH 1)
@@ -77,12 +75,6 @@ This assumes that the return-value has already been set up, contributes the fact
                           `(PUSH ,n)
                           `(MULTIPLY)
                           `(FACTORIAL-STEP-TCO ,(1- n)))))
-
-;;; handlers
-
-(define-message-dispatch arithmetic-server
-  (message-factorial-tco 'handle-message-factorial-tco)
-  (message-factorial     'handle-message-factorial))
 
 ;;;
 ;;; tests

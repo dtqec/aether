@@ -16,15 +16,11 @@
   "Sets the color of a process to one of two `COLOR' values."
   (color 0 :type bit))
 
-(define-broadcast-handler handle-broadcast-coloring
-    ((process process-tree-coloring) (message broadcast-coloring))
+(define-broadcast-handler ((process process-tree-coloring) (message broadcast-coloring))
   "Sets this process's color according to the message, and inverts the message's color."
   (setf (process-tree-coloring-color process) (broadcast-coloring-color message))
   (setf (broadcast-coloring-color message) (- 1 (broadcast-coloring-color message)))
   (push-broadcast-frame :targets (process-tree-children process)))
-
-(define-message-dispatch process-tree-coloring
-  (broadcast-coloring 'handle-broadcast-coloring))
 
 (deftest test-process-tree-2-coloring ()
   "Sends a message to the root of a tree of processes telling it to 2-color itself and its children, and then checks that the 2-coloring is correct. See `ADD-TREE-PROCESSES' for the fixture used to build the tree of processes."

@@ -32,7 +32,7 @@
 (define-process-upkeep ((process process-reader)) (START)
   (process-continuation process `(START)))
 
-(define-rpc-handler handle-message-write ((process process-reader) (message message-write))
+(define-rpc-handler ((process process-reader) (message message-write))
   (push (message-write-payload message)  (process-reader-receive-list process)))
 
 (defmethod process-lockable-targets ((process process-reader))
@@ -61,14 +61,6 @@
     (process-continuation process
                           `(TRANSMIT)
                           `(START-NO-LOCKS))))
-
-(define-message-dispatch process-writer
-  ;; writers don't have to receive any messages
-  )
-
-(define-message-dispatch process-reader
-  (message-lock  'handle-message-lock)
-  (message-write 'handle-message-write))
 
 (defmethod process-lockable-targets ((process process-writer))
   nil)

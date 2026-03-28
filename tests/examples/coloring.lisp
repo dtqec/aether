@@ -49,8 +49,7 @@
 (defstruct (message-color-query (:include message))
   "An RPC request for a foreign node's current color value.")
 
-(define-rpc-handler handle-message-color-query
-    ((process process-coloring) (message message-color-query))
+(define-rpc-handler ((process process-coloring) (message message-color-query))
   "Responds with this node's current color value."
   (process-coloring-color process))
 
@@ -79,8 +78,7 @@
   (old nil :type (or null address))
   (new nil :type (or null address)))
 
-(define-rpc-handler handle-message-swap-neighbor
-    ((process process-coloring) (message message-swap-neighbor))
+(define-rpc-handler ((process process-coloring) (message message-swap-neighbor))
   "Handles a SWAP-NEIGHBOR message."
   (let ((new (message-swap-neighbor-new message))
         (old (message-swap-neighbor-old message)))
@@ -96,8 +94,7 @@
                          :test #'address=))))
     (incf (process-coloring-workloads process))))
 
-(define-rpc-handler handle-message-inject
-    ((process process-coloring) (message message-inject))
+(define-rpc-handler ((process process-coloring) (message message-inject))
   "Handles an INJECT message."
   (let ((neighbors (message-inject-neighbors message))
         (address (process-public-address process)))
@@ -116,8 +113,7 @@
 (defstruct (message-kill (:include message))
   "Instruct a node to remove itself from the line.")
 
-(define-rpc-handler handle-message-kill
-    ((process process-coloring) (message message-kill))
+(define-rpc-handler ((process process-coloring) (message message-kill))
   "Given a node, tell its neighbors to sew over it, restart their coloring processes, and stop this node."
   (let ((neighbors (process-coloring-neighbors process))
         (address (process-public-address process)))
@@ -131,14 +127,6 @@
                                                 :new (first neighbors))))
     (setf (process-coloring-workloads process) 0)
     t))
-
-;;; generic things
-
-(define-message-dispatch process-coloring
-  (message-color-query   'handle-message-color-query)
-  (message-kill          'handle-message-kill)
-  (message-inject        'handle-message-inject)
-  (message-swap-neighbor 'handle-message-swap-neighbor))
 
 ;;;
 ;;; tests

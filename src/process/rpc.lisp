@@ -5,18 +5,29 @@
 
 (in-package #:aether)
 
+(defun finish-rpc-handler (&optional return-value (handled t))
+  "Early escape from DEFINE-RPC-HANDLER.  Like FINISH-HANDLER, but with a retval."
+  (declare (ignore return-value handled))
+  (error () "Cannot call FINISH-RPC-HANDLER outside of a DEFINE-RPC-HANDLER body."))
+
 ;; TODO: this traps RETURN-FROM, but not FINISH-WITH-SCHEDULING.
-(defmacro define-rpc-handler (handler-name
-                              ((process process-type) (message message-type))
+(defmacro define-rpc-handler (((process process-type) (message message-type)
+                               &key (guard nil guard-p))
                               &body body)
   "Interrupt-based RPC handlers are expected to emit a reply to the caller.  This macro augments DEFINE-MESSAGE-HANDLER to reply to the caller with the last evaluated form."
-  (a:with-gensyms (return-value reply-channel)
-    `(define-message-handler ,handler-name
-         ((,process ,process-type) (,message ,message-type))
-       (let (,return-value)
-         (setf ,return-value (block ,handler-name ,@body))
+  (a:with-gensyms (block-name return-value reply-channel handled)
+    `(define-message-handler
+         ((,process ,process-type) (,message ,message-type)
+          ,@(when guard-p `(:guard ,guard)))
+       (multiple-value-bind (,return-value ,handled)
+           (block ,block-name
+             (flet ((finish-handler (&optional ,return-value (,handled t))
+                      (return-from ,block-name (values ,return-value ,handled))))
+               (declare (ignorable #'finish-handler))
+               (values (progn ,@body) t)))
          (a:when-let ((,reply-channel (message-reply-channel ,message)))
-           (send-message ,reply-channel (make-message-rpc-done :result ,return-value)))))))
+           (send-message ,reply-channel (make-message-rpc-done :result ,return-value)))
+         (finish-handler ,handled)))))
 
 (defmacro sync-rpc (message
                     (result-place-or-list destination

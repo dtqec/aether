@@ -34,15 +34,9 @@
 
 ;; the message handlers
 
-(define-message-handler handle-msg-ping
-    ((box chatterbox) (message msg-ping))
+(define-message-handler ((box chatterbox) (message msg-ping))
   (with-slots (reply-channel) message
     (send-message reply-channel (make-msg-pong :vote (vote box)))))
-
-;;; the message dispatch
-
-(define-message-dispatch chatterbox
-  (msg-ping   'handle-msg-ping))
 
 ;;; the process commands
 

@@ -19,6 +19,7 @@
                       (funcall compile)))
   :serial t
   :components ((:file "package")
+               (:file "params")
                (:file "utilities")
                (:file "queue")
                (:file "cheap-heap")

@@ -114,7 +114,7 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
     ;; write the log entry.
     nil))
 
-(defun finish-handler (&optional (handled t))
+(defun finish-handler (&optional return-value (handled t))
   "Return from the active aether process handler.  If `HANDLED' is high, then the handler is understood as having taken care of the message, which is dropped from the inbox."
   (declare (ignore handled))
   (error () "Not available outside of an aether process handler."))
@@ -132,13 +132,13 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
               (if (consp message-and-message-type)
                   message-and-message-type
                   (list message-and-message-type t)))
-      (a:with-gensyms (handled)
+      (a:with-gensyms (return-value handled)
         `(defmethod %handle-process-message ((,process ,process-type)
                                              (,message ,message-type))
            ,@(list documentation)
            ,@decls
-           (flet ((finish-handler (&optional (,handled t))
-                    (return-from %handle-process-message ,handled))
+           (flet ((finish-handler (&optional ,return-value (,handled t))
+                    (return-from %handle-process-message (values ,return-value ,handled)))
                   (log-entry (&rest initargs)
                     (when (process-debug? ,process)
                       (apply #'log-entry
@@ -153,7 +153,10 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
                                  :payload (copy-structure payload))
                       (send-message destination payload)))
                (declare (ignorable #'send-message))
-               ,(if guard-p `(unless ,guard (finish-handler (call-next-method))))
+               ,(if guard-p `(unless ,guard
+                               (multiple-value-bind (,return-value ,handled)
+                                   (call-next-method)
+                                 (finish-handler ,return-value ,handled))))
                (when (process-debug? ,process)
                  (log-entry :time (now)
                             :entry-type ':handler-invoked
@@ -161,8 +164,7 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
                             :message-id (message-message-id ,message)
                             :payload-type ',message-type
                             :log-level 0))
-               ,@body
-               (finish-handler t))))))))
+               (values (progn ,@body) t))))))))
 
 #+#:ignore
 (define-message-handler ((process process) (message message-RTS))
@@ -178,7 +180,7 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
       ((= 3 safety) (check-key-secret address))
       ((> 3 safety) nil))
     (doq (message inbox)
-      (when (%handle-process-message node message)
+      (when (nth-value 1 (%handle-process-message node message))
         (q-deq-first inbox (lambda (x) (eq x message)))
         (return-from handle-process-inbox t))
       (when (and (process-debug? node)

@@ -119,10 +119,10 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
   (declare (ignore handled))
   (error () "Not available outside of an aether process handler."))
 
-(defmacro define-message-handler
-    ((process-and-process-type message-and-message-type
-      &key (guard nil guard-p))
-     &body body)
+(defun dmh-form
+    (process-and-process-type message-and-message-type
+     guard gf-name
+     body)
   "Defines a passive message handler, which walks the process mailbox at the start of every tick."
   (multiple-value-bind (body decls documentation) (a:parse-body body :documentation t)
     (destructuring-bind ((process process-type) (message message-type))
@@ -133,12 +133,12 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
                   message-and-message-type
                   (list message-and-message-type t)))
       (a:with-gensyms (return-value handled)
-        `(defmethod %handle-process-message ((,process ,process-type)
-                                             (,message ,message-type))
+        `(defmethod ,gf-name ((,process ,process-type)
+                              (,message ,message-type))
            ,@(list documentation)
            ,@decls
            (flet ((finish-handler (&optional ,return-value (,handled t))
-                    (return-from %handle-process-message (values ,return-value ,handled)))
+                    (return-from ,gf-name (values ,return-value ,handled)))
                   (log-entry (&rest initargs)
                     (when (process-debug? ,process)
                       (apply #'log-entry
@@ -153,10 +153,10 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
                                  :payload (copy-structure payload))
                       (send-message destination payload)))
                (declare (ignorable #'send-message))
-               ,(if guard-p `(unless ,guard
-                               (multiple-value-bind (,return-value ,handled)
-                                   (call-next-method)
-                                 (finish-handler ,return-value ,handled))))
+               (unless ,guard
+                 (multiple-value-bind (,return-value ,handled)
+                     (call-next-method)
+                   (finish-handler ,return-value ,handled)))
                (when (process-debug? ,process)
                  (log-entry :time (now)
                             :entry-type ':handler-invoked
@@ -165,6 +165,15 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
                             :payload-type ',message-type
                             :log-level 0))
                (values (progn ,@body) t))))))))
+
+(defmacro define-message-handler
+    ((process-and-process-type message-and-message-type
+      &key (guard t))
+     &body body)
+  "Defines a passive message handler, which walks the process mailbox at the start of every tick."
+  (dmh-form process-and-process-type message-and-message-type
+            guard '%handle-process-message
+            body))
 
 #+#:ignore
 (define-message-handler ((process process) (message message-RTS))

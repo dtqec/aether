@@ -119,6 +119,8 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
   (declare (ignore handled))
   (error () "Not available outside of an aether process handler."))
 
+;; TODO: could add a combo for call-next-method and finish-handler
+
 (defun dmh-form
     (process-and-process-type message-and-message-type
      guard gf-name

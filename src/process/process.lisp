@@ -106,90 +106,84 @@ IMPORTANT NOTE: Use #'SPAWN-PROCESS to generate a new PROCESS object."))
     (error "Undefined command ~a for server of type ~a."
            command (type-of server))))
 
-(defgeneric %message-dispatch (node message)
-  (:documentation "Use DEFINE-MESSAGE-DISPATCH to install methods here."))
+(defgeneric %handle-process-message (process message)
+  (:documentation "Use DEFINE-MESSAGE-DISPATCH to install methods here.")
+  (:method (process message)
+    "Bottom message handler: marks the message as not having been handled."
+    ;; this is *not* implemented via DEFINE-MESSAGE-HANDLER bc we don't want to
+    ;; write the log entry.
+    nil))
 
-(defun finish-handler ()
-  "Return from the active aether process handler."
+(defun finish-handler (&optional return-value (handled t))
+  "Return from the active aether process handler.  If `HANDLED' is high, then the handler is understood as having taken care of the message, which is dropped from the inbox."
+  (declare (ignore handled))
   (error () "Not available outside of an aether process handler."))
 
-(defmacro define-message-handler (handler-name ((process process-type) (message message-type)) &body body)
-  "Defines a function to be invoked by DEFINE-MESSAGE-DISPATCH."
-  (multiple-value-bind (body decls documentation) (a:parse-body body :documentation t)
-    `(defmethod ,handler-name ((,process ,process-type)
-                               (,message ,message-type))
-       ,@decls
-       ,@(list documentation)
-       (check-type ,message ,message-type)
-       (check-type ,process ,process-type)
-       (macrolet ((finish-handler () '(return-from ,handler-name)))
-         (flet ((log-entry (&rest initargs)
-                  (when (process-debug? ,process)
-                    (apply #'log-entry
-                           (append initargs
-                                   (list :log-level 0
-                                         :time (now)
-                                         :source ,process))))))
-           (flet ((send-message (destination payload)
-                    (log-entry :entry-type ':send-message
-                               :destination destination
-                               :payload (copy-structure payload))
-                    (send-message destination payload)))
-             (declare (ignorable #'send-message))
-             ,@body))))))
+;; TODO: could add a combo for call-next-method and finish-handler
 
-(define-message-handler handle-message-RTS
-    ((process process) (message message-RTS))
+(defun dmh-form
+    (process-and-process-type message-and-message-type
+     guard gf-name
+     body)
+  "Defines a passive message handler, which walks the process mailbox at the start of every tick."
+  (multiple-value-bind (body decls documentation) (a:parse-body body :documentation t)
+    (destructuring-bind ((process process-type) (message message-type))
+        (list (if (consp process-and-process-type)
+                  process-and-process-type
+                  (list process-and-process-type t))
+              (if (consp message-and-message-type)
+                  message-and-message-type
+                  (list message-and-message-type t)))
+      (a:with-gensyms (return-value handled)
+        `(defmethod ,gf-name ((,process ,process-type)
+                              (,message ,message-type))
+           ,@(list documentation)
+           ,@decls
+           (flet ((finish-handler (&optional ,return-value (,handled t))
+                    (return-from ,gf-name (values ,return-value ,handled)))
+                  (log-entry (&rest initargs)
+                    (when (process-debug? ,process)
+                      (apply #'log-entry
+                             (append initargs
+                                     (list :log-level 0
+                                           :time (now)
+                                           :source ,process))))))
+             (declare (ignorable #'finish-handler))
+             (flet ((send-message (destination payload)
+                      (log-entry :entry-type ':send-message
+                                 :destination destination
+                                 :payload (copy-structure payload))
+                      (send-message destination payload)))
+               (declare (ignorable #'send-message))
+               (unless ,guard
+                 (multiple-value-bind (,return-value ,handled)
+                     (call-next-method)
+                   (finish-handler ,return-value ,handled)))
+               (when (process-debug? ,process)
+                 (log-entry :time (now)
+                            :entry-type ':handler-invoked
+                            :source ,process
+                            :message-id (message-message-id ,message)
+                            :payload-type ',message-type
+                            :log-level 0))
+               (values (progn ,@body) t))))))))
+
+(defmacro define-message-handler
+    ((process-and-process-type message-and-message-type
+      &key (guard t))
+     &body body)
+  "Defines a passive message handler, which walks the process mailbox at the start of every tick."
+  (dmh-form process-and-process-type message-and-message-type
+            guard '%handle-process-message
+            body))
+
+#+#:ignore
+(define-message-handler ((process process) (message message-RTS))
   "Default handler for when a `PROCESS' receives a `MESSAGE-RTS'. Throws an error."
   (error "Got an RTS"))
 
-(defmacro define-message-dispatch (node-type &body clauses)
-  "Defines \"automatic\" message handlers associated to a particular subtype of `PROCESS'.  Each handler is specified by a tuple of form (MESSAGE-TYPE MESSAGE-HANDLER &OPTIONAL GUARD).  As with `RECEIVE-MESSAGE', each clause is processed in turn, according to the following rules:
-
-  + If supplied, `GUARD' is evaluated with the `PROCESS' in question bound to the place `PROCESS-TYPE'.  If `GUARD' evaluates to NIL, proceed to the next clause.
-  + Check the message queue at the public address for an item of type `MESSAGE-TYPE'.  If such a message is found, call the associated `MESSAGE-HANDLER' with lambda triple (PROCESS MESSAGE TIME).  Otherwise, proceed to the next clause.
-
-There is one exception: (CALL-NEXT-METHOD) is also a legal clause, and it references to the message handling table installed via DEFINE-MESSAGE-DISPATCH on this process type's parent.
-
-NOTES:
-  + If no clause is matched, execution proceeds to the semantics specified by `DEFINE-PROCESS-UPKEEP'.
-  + Automatically appends a `MESSAGE-RTS' clause which calls `HANDLE-MESSAGE-RTS' and results in an error. Because of this, we set `CATCH-RTS?' to NIL when processing clauses and building `RECEIVE-MESSAGE' blocks. Otherwise, it would be impossible to override the default handling of `MESSAGE-RTS'es.  Additionally, this extra handler is _not_ inherited through (CALL-NEXT-METHOD).
-
-WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you will probably stall the underlying `PROCESS' if you perform some waiting action here, like the analogue of a `SYNC-RECEIVE'.  See DEFINE-MESSAGE-SUBORDINATE for a workaround."
-  (a:with-gensyms (node message)
-    `(defmethod %message-dispatch ((,node ,node-type) ,message)
-       ,@(mapcar
-          (lambda (clause)
-            (cond
-              ((and (listp clause)
-                    (= 1 (length clause))
-                    (symbolp (first clause))
-                    (string= "CALL-NEXT-METHOD" (symbol-name (first clause))))
-               `(when (call-next-method)
-                  (return-from %message-dispatch t)))
-              ((and (listp clause)
-                    (member (length clause) '(2 3)))
-               (destructuring-bind (message-type receiver . rest) clause
-                 `(when (and
-                         (typep ,message ',message-type)
-                         (let ((,node-type ,node))
-                           (declare (ignorable ,node-type))
-                           ,(or (first rest) t)))
-                    (when (process-debug? ,node)
-                      (log-entry :time (now)
-                                 :entry-type ':handler-invoked
-                                 :source ,node
-                                 :message-id (message-message-id ,message)
-                                 :payload-type ',message-type
-                                 :log-level 0))
-                    (funcall ,receiver ,node ,message)
-                    (return-from %message-dispatch t))))
-              (t
-               (error "Bad DEFINE-MESSAGE-DISPATCH clause: ~a" clause))))
-          clauses))))
-
-(defun message-dispatch (node)
-  "Use DEFINE-MESSAGE-DISPATCH to install methods here."  
+(defun handle-process-inbox (node)
+  "Use DEFINE-MESSAGE-HANDLER to install methods here."  
   (let* ((address (process-public-address node))
          (inbox (gethash (address-channel address)
                          (courier-inboxes *local-courier*))))
@@ -197,9 +191,9 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
       ((= 3 safety) (check-key-secret address))
       ((> 3 safety) nil))
     (doq (message inbox)
-      (when (%message-dispatch node message)
+      (when (nth-value 1 (%handle-process-message node message))
         (q-deq-first inbox (lambda (x) (eq x message)))
-        (return-from message-dispatch t))
+        (return-from handle-process-inbox t))
       (when (and (process-debug? node)
                  (typep message 'message-RTS))
         (log-entry :time (now)
@@ -207,8 +201,8 @@ WARNING: These actions are to be thought of as \"interrupts\". Accordingly, you 
                   :source node
                   :message-id (message-message-id message)
                   :payload-type (type-of message))
-        (handle-message-RTS node message)
-        (return-from message-dispatch t)))))
+        (error "Got an RTS")
+        (return-from handle-process-inbox t)))))
 
 ;; TODO: DEFINE-DPU-MACRO and DEFINE-DPU-FLET don't check syntactic sanity at
 ;;       their runtime, they wait for DEFINE-PROCESS-UPKEEP to discover it.
@@ -345,7 +339,7 @@ Locally enables the use of the various functions and macro forms defined in dpu-
     (with-slots (process-key process-clock-rate process-exhaust-inbox?) process
       (let ((*local-courier* (process-courier process))
             (active? nil))
-        (when (message-dispatch process)
+        (when (handle-process-inbox process)
           (when process-exhaust-inbox?
             (schedule process (now))
             (return)))

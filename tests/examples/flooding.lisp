@@ -51,8 +51,7 @@
 ;;; handler definitions
 ;;;
 
-(define-message-handler handle-message-flood
-    ((process process-flooding) (message message-flood))
+(define-message-handler ((process process-flooding) (message message-flood))
   "Handles a `FLOOD' message. If the `PROCESS's parent is unset, sets it to the `PARENT-ADDRESS' and forwards along the broadcast by pushing the `BROADCAST-FLOOD' command onto the stack. Otherwise, lets the `REPLY-CHANNEL' know that we already have a parent."
   (with-slots (parent-address reply-channel) message
     (let ((parent (process-flooding-parent process)))
@@ -64,13 +63,6 @@
          #+i(format t "~%~A: ~A setting parent ~A" (now) process parent-address)
          (setf (process-flooding-parent process) parent-address)
          (process-continuation process `(BROADCAST-FLOOD ,reply-channel)))))))
-
-;;;
-;;; message dispatch
-;;;
-
-(define-message-dispatch process-flooding
-  (message-flood  'handle-message-flood))
 
 ;;;
 ;;; process upkeep

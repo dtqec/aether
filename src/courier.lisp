@@ -10,8 +10,6 @@
 ;;; `*LOCAL-COURIER*'.
 ;;;
 
-(defparameter *local-courier* nil
-  "Bound to the `COURIER' that services this process.")
 (defparameter *courier-processing-clock-rate* 100)
 (defparameter *routing-time-step* 1/100)
 

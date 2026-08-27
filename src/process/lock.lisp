@@ -125,8 +125,7 @@
   "Sent to release a lock."
   (result))
 
-(define-message-handler handle-message-lock
-    ((process process-lockable) (message message-lock))
+(define-message-handler ((process process-lockable) (message message-lock))
   "Attempts to lock PROCESS."
   (with-slots (reply-channel) message
     (with-slots (aborting? locked?) process

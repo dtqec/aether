@@ -5,18 +5,34 @@
 
 (in-package #:aether)
 
-;; TODO: this traps RETURN-FROM, but not FINISH-WITH-SCHEDULING.
-(defmacro define-rpc-handler (handler-name
-                              ((process process-type) (message message-type))
+(defgeneric %handle-rpc-handler (process message)
+  (:documentation "Use DEFINE-RPC-HANDLER to add entries here."))
+
+(defmacro define-rpc-handler ((process-and-process-type message-and-message-type
+                               &key (guard t))
                               &body body)
   "Interrupt-based RPC handlers are expected to emit a reply to the caller.  This macro augments DEFINE-MESSAGE-HANDLER to reply to the caller with the last evaluated form."
-  (a:with-gensyms (return-value reply-channel)
-    `(define-message-handler ,handler-name
-         ((,process ,process-type) (,message ,message-type))
-       (let (,return-value)
-         (setf ,return-value (block ,handler-name ,@body))
-         (a:when-let ((,reply-channel (message-reply-channel ,message)))
-           (send-message ,reply-channel (make-message-rpc-done :result ,return-value)))))))
+  (a:with-gensyms (block-name return-value reply-channel handled)
+    (let ((process (if (listp process-and-process-type) (first process-and-process-type) process-and-process-type))
+          (message (if (listp message-and-message-type) (first message-and-message-type) message-and-message-type)))
+      `(progn
+         ;; actually computes RPC value
+         ,(dmh-form process-and-process-type message-and-message-type
+                    guard '%handle-rpc-handler
+                    body)
+         ;; hook from message handler subsystem to RPC subsystem.
+         ;; when hook returns, package RPC reply and send.
+         ,(dmh-form process-and-process-type message-and-message-type
+                    guard '%handle-process-message
+                    `((multiple-value-bind (,return-value ,handled)
+                          (block ,block-name
+                            (flet ((finish-handler (&optional ,return-value (,handled t))
+                                     (return-from ,block-name (values ,return-value ,handled))))
+                              (declare (ignorable #'finish-handler))
+                              (%handle-rpc-handler ,process ,message)))
+                        (a:when-let ((,reply-channel (message-reply-channel ,message)))
+                          (send-message ,reply-channel (make-message-rpc-done :result ,return-value)))
+                        (finish-handler ,return-value ,handled))))))))
 
 (defmacro sync-rpc (message
                     (result-place-or-list destination

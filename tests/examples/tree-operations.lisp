@@ -21,23 +21,20 @@
 (defstruct (convergecast-tree-leaves (:include message))
   "Used to determined the number of leaves in a tree of processes.")
 
-(define-convergecast-handler handle-convergecast-tree-size
-    ((process process-tree) (message convergecast-tree-size))
+(define-convergecast-handler ((process process-tree) (message convergecast-tree-size))
   "Computes the size of the tree of processes."
   (push-convergecast-frame :targets (process-tree-children process)
                            :func #'aether::reduce+
                            :input 1))
 
-(define-convergecast-handler handle-convergecast-tree-depth
-    ((process process-tree) (message convergecast-tree-depth))
+(define-convergecast-handler ((process process-tree) (message convergecast-tree-depth))
   "Computes the depth of a tree of processes by incrementing a carry."
   (incf (convergecast-tree-depth-depth message))
   (push-convergecast-frame :targets (process-tree-children process)
                            :func #'aether::reduce-max
                            :input (convergecast-tree-depth-depth message)))
 
-(define-convergecast-handler handle-convergecast-tree-depth-no-carry
-    ((process process-tree) (message convergecast-tree-depth-no-carry))
+(define-convergecast-handler ((process process-tree) (message convergecast-tree-depth-no-carry))
   "Computes the depth of a tree of processes without using a carry. Demonstrates the power of `FUNCALL' over `REDUCE'."
   (flet ((1+reduce-max (input replies)
            (declare (ignore input))
@@ -46,8 +43,7 @@
                              :func #'1+reduce-max
                              :input 1)))
 
-(define-convergecast-handler handle-convergecast-tree-leaves
-    ((process process-tree) (message convergecast-tree-leaves))
+(define-convergecast-handler ((process process-tree) (message convergecast-tree-leaves))
   "Computes the number of leaves of a tree of processes."
   (cond
     ((process-tree-children process)
@@ -58,12 +54,6 @@
      (push-convergecast-frame :targets (process-tree-children process)
                               :func #'aether::reduce+
                               :input 1))))
-
-(define-message-dispatch process-tree
-  (convergecast-tree-size            'handle-convergecast-tree-size)
-  (convergecast-tree-depth           'handle-convergecast-tree-depth)
-  (convergecast-tree-depth-no-carry  'handle-convergecast-tree-depth-no-carry)
-  (convergecast-tree-leaves          'handle-convergecast-tree-leaves))
 
 (deftest test-process-tree-operations ()
   "Tests that we can implement some common tree operations in a distributed setting using built-in convergecast facilities. See `ADD-TREE-PROCESSES' for the fixture used to build the tree of processes."

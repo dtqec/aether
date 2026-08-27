@@ -46,14 +46,12 @@
 ;;; message handlers
 ;;;
 
-(define-broadcast-handler handle-broadcast-test
-    ((process process-tree-cast-test) (message broadcast-test))
+(define-broadcast-handler ((process process-tree-cast-test) (message broadcast-test))
   "Pushes the `PROCESS's ID to a global list."
   (push (process-tree-id process) *broadcast-events*)
   (push-broadcast-frame :targets (process-tree-children process)))
 
-(define-broadcast-handler handle-broadcast-test-abort
-    ((process process-tree-cast-test) (message broadcast-test-abort))
+(define-broadcast-handler ((process process-tree-cast-test) (message broadcast-test-abort))
   "Pushes the `PROCESS's ID to a global list, and potentially aborts the broadcast if the `PROCESS's ID is equal to `ABORT-ID'."
   (with-slots (abort-id) message
     (push (process-tree-id process) *broadcast-events*)
@@ -61,29 +59,25 @@
     (when (= abort-id (process-tree-id process))
       (return-from-cast))))
 
-(define-broadcast-handler handle-broadcast-test-script
-    ((process process-tree-cast-test) (message broadcast-test-script))
+(define-broadcast-handler ((process process-tree-cast-test) (message broadcast-test-script))
   "Pushes the `:PUSH-TIMES' command onto the stack."
   (with-slots (scalar) message
     (process-continuation process `(PUSH-TIMES ,scalar))
     (push-broadcast-frame :targets (process-tree-children process))))
 
-(define-broadcast-handler handle-broadcast-test-rts
-    ((process process-tree-cast-test) (message broadcast-test-rts))
+(define-broadcast-handler ((process process-tree-cast-test) (message broadcast-test-rts))
   "Pushes the `PROCESS's ID to a global list."
   (push (process-tree-id process) *broadcast-events*)
   (push-broadcast-frame :targets (process-tree-children process)
                         :handle-rts? t))
 
-(define-convergecast-handler handle-convergecast-test
-    ((process process-tree-cast-test) (message convergecast-test))
+(define-convergecast-handler ((process process-tree-cast-test) (message convergecast-test))
   "Puts the `PROCESS's ID as `INPUT' to the convergcast frame."
   (push-convergecast-frame :targets (process-tree-children process)
                            :func #'aether::reduce+
                            :input (process-tree-id process)))
 
-(define-convergecast-handler handle-convergecast-test-abort
-    ((process process-tree-cast-test) (message convergecast-test-abort))
+(define-convergecast-handler ((process process-tree-cast-test) (message convergecast-test-abort))
   "Puts the `PROCESS's ID as `INPUT' to the convergecast frame, unless it is equal to `ABORT-ID', which triggers a `RETURN-FROM-CAST' and thus an abort of the convergecast operation."
   (with-slots (abort-id) message
     (push-convergecast-frame :targets (process-tree-children process)
@@ -92,8 +86,7 @@
     (when (= abort-id (process-tree-id process))
       (return-from-cast 0))))
 
-(define-convergecast-handler handle-convergecast-test-script
-    ((process process-tree-cast-test) (message convergecast-test-script))
+(define-convergecast-handler ((process process-tree-cast-test) (message convergecast-test-script))
   "Pushes the `:SET-TIMES' command onto the stack."
   (with-slots (scalar) message
     (process-continuation process `(SET-TIMES ,scalar))
@@ -101,8 +94,7 @@
                              :func #'aether::reduce+
                              :input (process-tree-id process))))
 
-(define-convergecast-handler handle-convergecast-test-rts
-    ((process process-tree-cast-test) (message convergecast-test-rts))
+(define-convergecast-handler ((process process-tree-cast-test) (message convergecast-test-rts))
   "Puts the `PROCESS's ID as `INPUT' to the convergcast frame. In order to handle RTSes gracefully, our `FUNC' must also handle NILs."
   (labels ((null+ (input replies)
              (loop :for value :in (list* input replies)
@@ -133,19 +125,6 @@
     (HALT)
   "Kills the process."
   (process-die))
-
-;;;
-;;; message dispatch
-
-(define-message-dispatch process-tree-cast-test
-  (broadcast-test            'handle-broadcast-test)
-  (broadcast-test-abort      'handle-broadcast-test-abort)
-  (broadcast-test-script     'handle-broadcast-test-script)
-  (broadcast-test-rts        'handle-broadcast-test-rts)
-  (convergecast-test         'handle-convergecast-test)
-  (convergecast-test-abort   'handle-convergecast-test-abort)
-  (convergecast-test-script  'handle-convergecast-test-script)
-  (convergecast-test-rts     'handle-convergecast-test-rts))
 
 ;;;
 ;;; test definitions
